@@ -1,0 +1,1 @@
+# main component managing the file status and the file content
