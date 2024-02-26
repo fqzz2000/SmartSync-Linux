@@ -1,3 +1,4 @@
+#!/bin/python3
 # the fuse interaction layer
 from lib import FUSE, LoggingMixIn, Operations, FuseOSError
 import logging
@@ -41,15 +42,36 @@ class FuseDropBox(LoggingMixIn, Operations):
             st_mtime=time(),
             st_atime=time())
         self.data[path] = b''
-
+        
         self.fd += 1
-        return self.fd
+        return os.open(path, os.O_CREAT|os.O_WRONLY)
 
     def getattr(self, path, fh=None):
-        if path not in self.files:
-            raise FuseOSError(ENOENT)
-
-        return self.files[path]
+        # print(os.lstat(path))
+        # if path not in self.files:
+        #     raise FuseOSError(ENOENT)
+        # now = time()
+        # if path == "/":
+        #     return dict(
+        #     st_mode=(S_IFDIR | 0o755),
+        #     st_ctime=now,
+        #     st_mtime=now,
+        #     st_atime=now,
+        #     st_nlink=2)
+        
+        # return self.files[path]
+        ret = os.lstat(path)
+        # make ret to a dict
+        return {
+            'st_atime': ret.st_atime,
+            'st_ctime': ret.st_ctime,
+            'st_gid': ret.st_gid,
+            'st_mode': ret.st_mode,
+            'st_mtime': ret.st_mtime,
+            'st_nlink': ret.st_nlink,
+            'st_size': ret.st_size,
+            'st_uid': ret.st_uid
+        }
 
     def getxattr(self, path, name, position=0):
         attrs = self.files[path].get('attrs', {})
@@ -76,13 +98,17 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def open(self, path, flags):
         self.fd += 1
-        return self.fd
+        
+        return os.open(path, flags)
 
     def read(self, path, size, offset, fh):
-        return self.data[path][offset:offset + size]
+        data = os.pread(fh, size, offset)
+        # return self.data[path][offset:offset + size]
+        return data
 
     def readdir(self, path, fh):
-        return ['.', '..'] + [x[1:] for x in self.files if x != '/']
+        # return ['.', '..'] + [x[1:] for x in self.files if x != '/']
+        return ['.','..'] + os.listdir(path)
 
     def readlink(self, path):
         return self.data[path]
@@ -143,9 +169,12 @@ class FuseDropBox(LoggingMixIn, Operations):
             + data
             # and only overwrites the bytes that data is replacing
             + self.data[path][offset + len(data):])
+        os.pwrite(fh, data, offset)
         self.files[path]['st_size'] = len(self.data[path])
         return len(data)
-
+    def release(self, path, fh):
+        # os.close(fh)
+        return 0
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -153,4 +182,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG)
-    fuse = FUSE(FuseDropBox(), args.mount, foreground=True, allow_other=False)
+    fuse = FUSE(FuseDropBox(), args.mount, foreground=True, allow_other=True)
