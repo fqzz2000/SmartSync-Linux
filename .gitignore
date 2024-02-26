@@ -3,3 +3,4 @@
 *.swp
 rootdir
 mntdir
+tokens.toml

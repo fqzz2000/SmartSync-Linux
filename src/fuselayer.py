@@ -13,9 +13,10 @@ import os
 class FuseDropBox(LoggingMixIn, Operations):
     'Example memory filesystem. Supports only one level of files.'
 
-    def __init__(self, rootdir):
+    def __init__(self, rootdir, dbmodel):
         self.rootdir = rootdir
         print("ROOTDIR IS", rootdir)
+        self.db = dbmodel
 
     def chmod(self, path, mode):
         if path[0] == "/":
@@ -28,6 +29,7 @@ class FuseDropBox(LoggingMixIn, Operations):
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         os.chown(path, uid, gid)
+
     def create(self, path, mode):
         if path[0] == "/":
             path = path[1:]
@@ -87,6 +89,10 @@ class FuseDropBox(LoggingMixIn, Operations):
             path = path[1:]
         newpath = os.path.join(self.rootdir, path)
         return ['.','..'] + os.listdir(newpath)
+        # if path == "/":
+        #     path = ""
+        # rv = self.db.listFolder(path)
+        # return ['.', '..'] + list(rv.keys())
 
     def readlink(self, path):
         if path[0] == "/":
@@ -151,6 +157,8 @@ class FuseDropBox(LoggingMixIn, Operations):
     def release(self, path, fh):
         os.close(fh)
         return 0
+    
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
