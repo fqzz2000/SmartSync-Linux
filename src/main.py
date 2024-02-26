@@ -3,6 +3,7 @@ from data import DropboxInterface
 from fuselayer import FuseDropBox
 from lib import FUSE
 from model import DropBoxModel
+import logging
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:
@@ -12,5 +13,6 @@ if __name__ == "__main__":
     db = DropboxInterface(TOKEN)
     model = DropBoxModel(db)
     rootdir = "/home/qf37/ece566/finalproj/SmartSync-Linux/rootdir"
+    logging.basicConfig(level=logging.DEBUG)
     fuse = FUSE(FuseDropBox(rootdir, model), "/home/qf37/ece566/finalproj/SmartSync-Linux/mntdir", foreground=True, allow_other=True)
     

@@ -23,18 +23,24 @@ class DropboxInterface:
     
     def delete(self, path):
         self.dbx.files_delete(path)
+
+    def getmetadata(self, path):
+        rc = self.dbx.files_get_metadata(path)
+        ret = {}
+        ret["name"] = rc.name
+        ret["preview_url"] = rc.preview_url
+
+        return ret 
         
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 2:
         print("Usage: {} <token>".format(sys.argv[0]))
         sys.exit(1)
     rootPath = "/home/qf37/ece566/finalproj/SmartSync-Linux/rootdir"
     db = DropboxInterface(sys.argv[1])
     dic = db.list_folder("")
     for k, v in dic.items():
-        if k == "my-file-backup.txt":
-            print(k, v.path_lower)
-            db.download(v.path_lower, k)
+        print(k, v)
 
     

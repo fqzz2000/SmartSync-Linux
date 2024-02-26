@@ -30,12 +30,22 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return -1
+        
     def listFolder(self, path:str) -> dict:
         '''
         list the folder in the dropbox
         '''
         try:
             return self.dbx.list_folder(path)
+        except Exception as e:
+            print(e)
+            return None
+    def getmetadata(self, path:str) -> dict:
+        '''
+        get the metadata of the file
+        '''
+        try:
+            return self.dbx.getmetadata(path)
         except Exception as e:
             print(e)
             return None

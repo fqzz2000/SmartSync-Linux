@@ -41,24 +41,54 @@ class FuseDropBox(LoggingMixIn, Operations):
             path = path[1:]
 
         newpath = os.path.join(self.rootdir, path)
-        ret = os.lstat(newpath)
-        # make ret to a dict
-        return {
-            'st_atime': ret.st_atime,
-            'st_ctime': ret.st_ctime,
-            'st_gid': ret.st_gid,
-            'st_mode': ret.st_mode,
-            'st_mtime': ret.st_mtime,
-            'st_nlink': ret.st_nlink,
-            'st_size': ret.st_size,
-            'st_uid': ret.st_uid
-        }
+        try:
+            ret = os.lstat(newpath)
+        except FileNotFoundError:
+            # find the file in the dropbox
+            # get base name
+            if len(path) == 0 or path[0] != "/":
+                path = "/" + path
+            print("PATH IS", path)
+            metadata = self.db.getmetadata(path)
+            if isinstance(metadata, dict):
+                return {
+                    'st_atime': time(),
+                    'st_ctime': time(),
+                    'st_gid': os.getgid(),
+                    'st_mode': S_IFREG | 0o644,
+                    'st_mtime': time(),
+                    'st_nlink': 1,
+                    'st_size': 0,
+                    'st_uid': os.getuid()
+                }
+        else:
+            return {
+                'st_atime': ret.st_atime,
+                'st_ctime': ret.st_ctime,
+                'st_gid': ret.st_gid,
+                'st_mode': ret.st_mode,
+                'st_mtime': ret.st_mtime,
+                'st_nlink': ret.st_nlink,
+                'st_size': ret.st_size,
+                'st_uid': ret.st_uid
+            }
 
     def getxattr(self, path, name, position=0):
         if path[0] == "/":
             path = path[1:]
-        path = os.path.join(self.rootdir, path)
-        os.getxattr(path, name, position)
+        try:
+            newpath = os.path.join(self.rootdir, path)
+            ret = os.getxattr(newpath, name)
+            return ret
+        except FileNotFoundError:
+            # find the file in the dropbox
+            if len(path) == 0 or path[0] != "/":
+                path = "/" + path
+            print("PATH IS", path)
+            metadata = self.db.getmetadata(path)
+            if isinstance(metadata, dict):
+                # TODO: solve the problem caused by getting started iwth dropbox paper.paper
+                return metadata.get(name, bytes(""))
 
     def listxattr(self, path):
         if path[0] == "/":
@@ -84,15 +114,15 @@ class FuseDropBox(LoggingMixIn, Operations):
         return data
 
     def readdir(self, path, fh):
-        print("ROOTDIR S", self.rootdir)
-        if path[0] == "/":
-            path = path[1:]
-        newpath = os.path.join(self.rootdir, path)
-        return ['.','..'] + os.listdir(newpath)
-        # if path == "/":
-        #     path = ""
-        # rv = self.db.listFolder(path)
-        # return ['.', '..'] + list(rv.keys())
+        # print("ROOTDIR S", self.rootdir)
+        # if path[0] == "/":
+        #     path = path[1:]
+        # newpath = os.path.join(self.rootdir, path)
+        # return ['.','..'] + os.listdir(newpath)
+        if path == "/":
+            path = ""
+        rv = self.db.listFolder(path)
+        return ['.', '..'] + list(rv.keys())
 
     def readlink(self, path):
         if path[0] == "/":
