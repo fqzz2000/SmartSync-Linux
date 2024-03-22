@@ -9,12 +9,12 @@ class DropBoxModel():
         pass 
 
 
-    def read(self, path:str) -> int:
+    def read(self, path:str, file:str) -> int:
         '''
         download the file from dropbox
         '''
         try:
-            self.dbx.download(path)
+            self.dbx.download(path, file)
             return 0
         except Exception as e:
             print(e)
@@ -49,7 +49,26 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return None
-
+    def downloadAll(self, rootdir:str) -> int:
+        '''
+        download all the files in the dropbox
+        '''
+        try:
+            dic = self.listFolder("")
+            for k, v in dic.items():
+                if len(k) == 0 or k[0] != "/":
+                    k = "/" + k
+                value_type = str(type(v))
+                if value_type == "<class 'dropbox.files.FolderMetadata'>":
+                    self.dbx.download_folder(k, rootdir + k, rootdir)
+                elif value_type == "<class 'dropbox.files.FileMetadata'>":
+                    self.dbx.download(k, rootdir + "/" + k)
+                else:
+                    raise Exception("Unknown type" + value_type)
+            return 0
+        except Exception as e:
+            print(e)
+            return -1
 
 
 
