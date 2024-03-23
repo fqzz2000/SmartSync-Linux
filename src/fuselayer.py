@@ -33,6 +33,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
+        print ("PATH IS", path)
         return os.open(path, os.O_CREAT|os.O_WRONLY)
 
     def getattr(self, path, fh=None):
@@ -40,10 +41,22 @@ class FuseDropBox(LoggingMixIn, Operations):
             path = path[1:]
 
         newpath = os.path.join(self.rootdir, path)
+        # print(newpath)
         try:
             ret = os.lstat(newpath)
-        except Exception as e:
-            print(e)
+            # print(ret)
+            return {
+                'st_atime': ret.st_atime,
+                'st_ctime': ret.st_ctime,
+                'st_gid': ret.st_gid,
+                'st_mode': ret.st_mode,
+                'st_mtime': ret.st_mtime,
+                'st_nlink': ret.st_nlink,
+                'st_size': ret.st_size,
+                'st_uid': ret.st_uid
+            }
+        except FileNotFoundError:
+            #print(e)
             raise FuseOSError(errno.ENOENT)
         # except FileNotFoundError:
         #     # find the file in the dropbox
@@ -63,17 +76,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         #             'st_size': 0,
         #             'st_uid': os.getuid()
         #         }
-        else:
-            return {
-                'st_atime': ret.st_atime,
-                'st_ctime': ret.st_ctime,
-                'st_gid': ret.st_gid,
-                'st_mode': ret.st_mode,
-                'st_mtime': ret.st_mtime,
-                'st_nlink': ret.st_nlink,
-                'st_size': ret.st_size,
-                'st_uid': ret.st_uid
-            }
+            
 
     def getxattr(self, path, name, position=0):
         if path[0] == "/":
@@ -83,14 +86,15 @@ class FuseDropBox(LoggingMixIn, Operations):
             ret = os.getxattr(newpath, name)
             return ret
         except FileNotFoundError:
+            raise FuseOSError(errno.ENOENT)
             # find the file in the dropbox
-            if len(path) == 0 or path[0] != "/":
-                path = "/" + path
-            print("PATH IS", path)
-            metadata = self.db.getmetadata(path)
-            if isinstance(metadata, dict):
-                # TODO: solve the problem caused by getting started iwth dropbox paper.paper
-                return metadata.get(name, bytes(""))
+            # if len(path) == 0 or path[0] != "/":
+            #     path = "/" + path
+            # print("PATH IS", path)
+            # metadata = self.db.getmetadata(path)
+            # if isinstance(metadata, dict):
+            #     # TODO: solve the problem caused by getting started iwth dropbox paper.paper
+            #     return metadata.get(name, bytes(""))
 
     def listxattr(self, path):
         if path[0] == "/":
@@ -117,15 +121,14 @@ class FuseDropBox(LoggingMixIn, Operations):
         return data
 
     def readdir(self, path, fh):
-        # print("ROOTDIR S", self.rootdir)
-        # if path[0] == "/":
-        #     path = path[1:]
-        # newpath = os.path.join(self.rootdir, path)
-        # return ['.','..'] + os.listdir(newpath)
-        if path == "/":
-            path = ""
-        rv = self.db.listFolder(path)
-        return ['.', '..'] + list(rv.keys())
+        if path[0] == "/":
+            path = path[1:]
+        newpath = os.path.join(self.rootdir, path)
+        return ['.','..'] + os.listdir(newpath)
+        # if path == "/":
+        #     path = ""
+        # rv = self.db.listFolder(path)
+        # return ['.', '..'] + list(rv.keys())
 
     def readlink(self, path):
         if path[0] == "/":
@@ -140,7 +143,15 @@ class FuseDropBox(LoggingMixIn, Operations):
         os.removexattr(path, name)
 
     def rename(self, old, new):
-        os.rename(old, new)
+        if old[0] == "/":
+            old = old[1:]
+        if new[0] == "/":
+            new = new[1:]
+        old_path = os.path.join(self.rootdir, old)
+        new_path = os.path.join(self.rootdir, new)
+        os.rename(old_path, new_path)
+        self.db.move("/" + old, "/" + new)  
+
 
     def rmdir(self, path):
         # with multiple level support, need to raise ENOTEMPTY if contains any files
@@ -204,6 +215,5 @@ if __name__ == '__main__':
     parser.add_argument('mountdir')
     parser.add_argument('rootdir')
     args = parser.parse_args()
-
     logging.basicConfig(level=logging.DEBUG)
     fuse = FUSE(FuseDropBox(args.rootdir), args.mountdir, foreground=True, allow_other=True)

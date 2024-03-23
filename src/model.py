@@ -46,6 +46,7 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return None
+        
     def getmetadata(self, path:str) -> dict:
         '''
         get the metadata of the file
@@ -114,6 +115,17 @@ class DropBoxModel():
         '''
         try:
             self.dbx.delete(path)
+            return 0
+        except Exception as e:
+            print(e)
+            return -1
+        
+    def move(self, old:str, new:str) -> int:
+        '''
+        rename a file in the dropbox
+        '''
+        try:
+            self.dbx.move(old, new)
             return 0
         except Exception as e:
             print(e)

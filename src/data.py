@@ -44,7 +44,8 @@ class DropboxInterface:
                 res = self.dbx.files_upload(
                     data, path, mode,
                     client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
-                    mute=True)
+                    mute=True,
+                    autorename=True)
             except dropbox.exceptions.ApiError as err:
                 print('*** API error', err)
                 return None
@@ -74,7 +75,10 @@ class DropboxInterface:
         ret["preview_url"] = rc.preview_url
 
         return ret 
-        
+    
+    def move(self, from_path, to_path):
+        self.dbx.files_move(from_path, to_path, autorename=True)
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:
