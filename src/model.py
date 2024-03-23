@@ -5,8 +5,9 @@ import os
 import shutil
 
 class DropBoxModel():
-    def __init__(self, interface) -> None:
+    def __init__(self, interface, rootdir) -> None:
         self.dbx = interface
+        self.rootdir = rootdir
 
     def __del__(self):
         pass 
@@ -23,12 +24,14 @@ class DropBoxModel():
             print(e)
             return -1
         
-    def write(self, path:int) -> int:
+    def write(self, path:str) -> int:
         '''
         upload the file to dropbox
         '''
+        if len(path) == 0 or path[0] != "/":
+            path = "/" + path
         try:
-            self.dbx.upload(path)
+            self.dbx.upload(self.rootdir + path, path, True)
             return 0
         except Exception as e:
             print(e)
@@ -53,7 +56,7 @@ class DropBoxModel():
             print(e)
             return None
         
-    def downloadAll(self, rootdir:str) -> int:
+    def downloadAll(self) -> int:
         '''
         download all the files in the dropbox
         '''
@@ -64,9 +67,9 @@ class DropBoxModel():
                     k = "/" + k
                 value_type = str(type(v))
                 if value_type == "<class 'dropbox.files.FolderMetadata'>":
-                    self.dbx.download_folder(k, rootdir + k, rootdir)
+                    self.dbx.download_folder(k, self.rootdir + k, self.rootdir)
                 elif value_type == "<class 'dropbox.files.FileMetadata'>":
-                    self.dbx.download(k, rootdir + "/" + k)
+                    self.dbx.download(k, self.rootdir + "/" + k)
                 else:
                     raise Exception("Unknown type" + value_type)
             return 0
@@ -74,14 +77,14 @@ class DropBoxModel():
             print(e)
             return -1
 
-    def clearAll(self, rootdir:str) -> int:
+    def clearAll(self) -> int:
         '''
         clear all the files in the dropbox
         '''
-        print(os.listdir(rootdir))
-        for filename in os.listdir(rootdir):
+        print(os.listdir(self.rootdir))
+        for filename in os.listdir(self.rootdir):
             print(filename)
-            file_path = os.path.join(rootdir, filename)
+            file_path = os.path.join(self.rootdir, filename)
             try:
                 if os.path.isfile(file_path):
                     os.remove(file_path)
@@ -94,6 +97,27 @@ class DropBoxModel():
                 return -1
         return 0
 
+    def createFolder(self, path:str) -> int:
+        '''
+        create a folder in the dropbox
+        '''
+        try:
+            self.dbx.mkdir(path)
+            return 0
+        except Exception as e:
+            print(e)
+            return -1
 
+    def deleteFile(self, path:str) -> int:
+        '''
+        delete a file in the dropbox
+        '''
+        try:
+            self.dbx.delete(path)
+            return 0
+        except Exception as e:
+            print(e)
+            return -1
+        
 if __name__ == "__main__":
     print("Hello World")

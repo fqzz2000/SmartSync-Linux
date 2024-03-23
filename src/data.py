@@ -2,6 +2,19 @@
 import dropbox
 import zipfile
 import os
+import time
+import datetime
+import contextlib
+
+@contextlib.contextmanager
+def stopwatch(message):
+    """Context manager to print how long a block of code took."""
+    t0 = time.time()
+    try:
+        yield
+    finally:
+        t1 = time.time()
+        print('Total elapsed time for %s: %.3f' % (message, t1 - t0))
 
 class DropboxInterface:
     def __init__(self, token):
@@ -14,9 +27,29 @@ class DropboxInterface:
             rv[entry.name] = entry
         return rv
     
-    def upload(self, file, path):
+    def upload(self, file, path, overwrite=False):
+        """Upload a file.
+
+        Return the request response, or None in case of error.
+        """
+        mode = (dropbox.files.WriteMode.overwrite
+                if overwrite
+                else dropbox.files.WriteMode.add)
+        mtime = os.path.getmtime(file)
+        print(file)
         with open(file, 'rb') as f:
-            self.dbx.files_upload(f.read(), path)
+            data = f.read()
+        with stopwatch('upload %d bytes' % len(data)):
+            try:
+                res = self.dbx.files_upload(
+                    data, path, mode,
+                    client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
+                    mute=True)
+            except dropbox.exceptions.ApiError as err:
+                print('*** API error', err)
+                return None
+        print('uploaded as', res.name.encode('utf8'))
+        return res
 
     def download(self, path, file):
         self.dbx.files_download_to_file(file, path)

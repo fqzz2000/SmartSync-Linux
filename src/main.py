@@ -5,6 +5,10 @@ from lib import FUSE
 from model import DropBoxModel
 import logging
 import atexit
+import dropbox
+import datetime
+import time
+import os
 
 if __name__ == "__main__":
     import sys
@@ -14,10 +18,11 @@ if __name__ == "__main__":
     TOKEN = sys.argv[1]
     db = DropboxInterface(TOKEN)
     rootdir = "/home/tq22/ece566/SmartSync-Linux/cache"
-    model = DropBoxModel(db)
-    model.downloadAll(rootdir)
-    atexit.register(model.clearAll, rootdir)
-    logging.basicConfig(level=logging.DEBUG)
+    model = DropBoxModel(db, rootdir)
+    model.clearAll()
+    model.downloadAll()
+    atexit.register(model.clearAll)
+    # logging.basicConfig(level=logging.DEBUG)
     fuse = FUSE(FuseDropBox(rootdir, model), "/home/tq22/ece566/SmartSync-Linux/dropbox", foreground=True, allow_other=True)
 
     

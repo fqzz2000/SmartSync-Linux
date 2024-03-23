@@ -101,8 +101,9 @@ class FuseDropBox(LoggingMixIn, Operations):
     def mkdir(self, path, mode):
         if path[0] == "/":
             path = path[1:]
-        path = os.path.join(self.rootdir, path)
-        os.mkdir(path, mode)
+        new_path = os.path.join(self.rootdir, path)
+        os.mkdir(new_path, mode)
+        self.db.createFolder("/" + path)
 
     def open(self, path, flags):
         if path[0] == "/":
@@ -145,8 +146,9 @@ class FuseDropBox(LoggingMixIn, Operations):
         # with multiple level support, need to raise ENOTEMPTY if contains any files
         if path[0] == "/":
             path = path[1:]
-        path = os.path.join(self.rootdir, path)
-        os.rmdir(path)
+        new_path = os.path.join(self.rootdir, path)
+        os.rmdir(new_path)
+        self.db.deleteFile("/" + path)
 
     def setxattr(self, path, name, value, options, position=0):
         if path[0] == "/":
@@ -176,7 +178,11 @@ class FuseDropBox(LoggingMixIn, Operations):
         os.truncate(path, length)
 
     def unlink(self, path):
-        os.unlink(path)
+        if path[0] == "/":
+            path = path[1:]
+        new_path = os.path.join(self.rootdir, path)
+        os.unlink(new_path)
+        self.db.deleteFile("/" + path)
 
     def utimens(self, path, times=None):
         if path[0] == "/":
@@ -188,6 +194,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     
     def release(self, path, fh):
         os.close(fh)
+        self.db.write(path)
         return 0
     
 
@@ -197,7 +204,6 @@ if __name__ == '__main__':
     parser.add_argument('mountdir')
     parser.add_argument('rootdir')
     args = parser.parse_args()
-
 
     logging.basicConfig(level=logging.DEBUG)
     fuse = FUSE(FuseDropBox(args.rootdir), args.mountdir, foreground=True, allow_other=True)
