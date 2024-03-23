@@ -9,7 +9,6 @@ from time import time
 from collections import defaultdict
 import os
 
-
 class FuseDropBox(LoggingMixIn, Operations):
     'Example memory filesystem. Supports only one level of files.'
 
@@ -43,24 +42,27 @@ class FuseDropBox(LoggingMixIn, Operations):
         newpath = os.path.join(self.rootdir, path)
         try:
             ret = os.lstat(newpath)
-        except FileNotFoundError:
-            # find the file in the dropbox
-            # get base name
-            if len(path) == 0 or path[0] != "/":
-                path = "/" + path
-            print("PATH IS", path)
-            metadata = self.db.getmetadata(path)
-            if isinstance(metadata, dict):
-                return {
-                    'st_atime': time(),
-                    'st_ctime': time(),
-                    'st_gid': os.getgid(),
-                    'st_mode': S_IFREG | 0o644,
-                    'st_mtime': time(),
-                    'st_nlink': 1,
-                    'st_size': 0,
-                    'st_uid': os.getuid()
-                }
+        except Exception as e:
+            print(e)
+            raise FuseOSError(errno.ENOENT)
+        # except FileNotFoundError:
+        #     # find the file in the dropbox
+        #     # get base name
+        #     if len(path) == 0 or path[0] != "/":
+        #         path = "/" + path
+        #     print("PATH IS", path)
+        #     metadata = self.db.getmetadata(path)
+        #     if isinstance(metadata, dict):
+        #         return {
+        #             'st_atime': time(),
+        #             'st_ctime': time(),
+        #             'st_gid': os.getgid(),
+        #             'st_mode': S_IFREG | 0o644,
+        #             'st_mtime': time(),
+        #             'st_nlink': 1,
+        #             'st_size': 0,
+        #             'st_uid': os.getuid()
+        #         }
         else:
             return {
                 'st_atime': ret.st_atime,

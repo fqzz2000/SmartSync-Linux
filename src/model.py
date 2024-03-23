@@ -1,6 +1,9 @@
 # commandline interface for the program
 from data import DropboxInterface
 from lib import FUSE
+import os
+import shutil
+
 class DropBoxModel():
     def __init__(self, interface) -> None:
         self.dbx = interface
@@ -49,6 +52,7 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return None
+        
     def downloadAll(self, rootdir:str) -> int:
         '''
         download all the files in the dropbox
@@ -70,6 +74,25 @@ class DropBoxModel():
             print(e)
             return -1
 
+    def clearAll(self, rootdir:str) -> int:
+        '''
+        clear all the files in the dropbox
+        '''
+        print(os.listdir(rootdir))
+        for filename in os.listdir(rootdir):
+            print(filename)
+            file_path = os.path.join(rootdir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                elif os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(e)
+                return -1
+        return 0
 
 
 if __name__ == "__main__":
