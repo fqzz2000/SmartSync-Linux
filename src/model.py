@@ -1,39 +1,93 @@
 # commandline interface for the program
+from collections import deque
 import threading
+import time
 from data import DropboxInterface
 from lib import FUSE
 import os
 import shutil
 from functools import wraps
 
+def lockWrapper(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self.mutex.acquire()
+        ret = func(self, *args, **kwargs)
+        self.mutex.release()
+        return ret
+    return wrapper
+
 
 class DropBoxModel():
+    class UploadingThread():
+        def __init__(self, interface, lock, synchronizeInterval=5, maxSynchronizeInterval=60) -> None:
+            self.outstandingQueue = []
+            self.synInterval = synchronizeInterval
+            self.maxSynInterval = maxSynchronizeInterval
+            self.dbx = interface
+            self.lastMaxSyncTime = time.time()
+            self._stop = False
+            self.mutex = lock
+
+
+        
+        def __call__(self):
+            '''
+            synchronization loop
+            '''
+            while not self._stop:
+                time.sleep(self.synInterval)
+                self.synchronize()
+
+        @lockWrapper
+        def synchronize(self):
+            '''
+            synchronize all the files in the queue 
+            if the time is greater than the max synchronization interval, then upload all the files in the queue
+            otherwise, only upload the files that are older than the synchronization interval
+            '''
+            if len(self.outstandingQueue) > 0:
+                maxSync = time.time() - self.lastMaxSyncTime > self.maxSynInterval
+                newQueue = []
+                for path, file, timestamp in self.outstandingQueue:
+                    if maxSync:
+                        self.dbx.upload(path, file, True)
+                    elif time.time() - timestamp > self.synInterval:
+                        self.dbx.upload(path, file, True)
+                    else:
+                        newQueue.append((path, file, timestamp))
+                if maxSync:
+                    self.lastMaxSyncTime = time.time()
+                self.outstandingQueue = newQueue
+
+        @lockWrapper
+        def stop(self):
+            self._stop = True
+        
+        @lockWrapper
+        def addTask(self, path:str, file:str):
+            '''
+            search the queue, if the file is already in the queue, update the timestamp
+            otherwise, add the file to the queue
+            '''
+            for i in range(len(self.outstandingQueue)):
+                if self.outstandingQueue[i][0] == path:
+                    self.outstandingQueue[i] = (path, file, time.time())
+                    return
+            self.outstandingQueue.append((path, file, time.time()))
+
     def __init__(self, interface, rootdir) -> None:
         self.dbx = interface
         self.rootdir = rootdir
         self.mutex = threading.Lock()
+        self.synchronizeThread = self.UploadingThread(self.dbx, self.mutex)
+        self.thread = threading.Thread(target=self.synchronizeThread)
+        self.thread.start()
+        print("Model initialized")
 
     def __del__(self):
+        self.synchronizeThread.stop()
         pass 
-
-    @classmethod
-    def lockWrapper(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            self.mutex.acquire()
-            ret = func(self, *args, **kwargs)
-            self.mutex.release()
-            return ret
-        return wrapper
-    
-    @lockWrapper
-    def synchroneous(self, func):
-        '''
-        syncrhonize current data with dropbox
-        milestone 1: only upload the file to dropbox
-        '''
-
-        pass
     
     @lockWrapper
     def read(self, path:str, file:str) -> int:
@@ -55,7 +109,7 @@ class DropBoxModel():
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
-            self.dbx.upload(self.rootdir + path, path, True)
+            self.synchronizeThread.addTask(path, os.path.join(self.rootdir, path))
             return 0
         except Exception as e:
             print(e)
