@@ -5,3 +5,5 @@ rootdir
 mntdir
 tokens.toml
 *.log
+cache
+dropbox
