@@ -41,20 +41,36 @@ class DropboxInterface:
             data = f.read()
         with stopwatch('upload %d bytes' % len(data)):
             try:
-                # if len(data) <= 150 * 1024 * 1024:
-                res = self.dbx.files_upload(
-                    data, path, mode,
-                    client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
-                    mute=True,
-                    autorename=True)
-                # else:
-                #     res = self.dbx.files_upload_session_start(data)
+                if len(data) <= 150 * 1024 * 1024:
+                    res = self.dbx.files_upload(
+                        data, path, mode,
+                        client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
+                        mute=True,
+                        autorename=True)
+                else:
+                    self.upload_large_file(file, path, len(data))
 
             except dropbox.exceptions.ApiError as err:
                 print('*** API error', err)
                 return None
         print('uploaded as', res.name.encode('utf8'))
         return res
+
+    def upload_large_file(self, file, path, size):
+        CHUNK_SIZE = 4 * 1024 * 1024
+
+        with open(file, "rb") as f:
+            upload_session_start_result = self.dbx.files_upload_session_start(f.read(CHUNK_SIZE))
+            cursor = dropbox.files.UploadSessionCursor(session_id=upload_session_start_result.session_id,
+                                                        offset=f.tell())
+            commit = dropbox.files.CommitInfo(path=path)
+
+            while f.tell() < size:
+                if (size - f.tell()) <= CHUNK_SIZE:
+                    self.dbx.files_upload_session_finish(f.read(CHUNK_SIZE), cursor, commit)
+                else:
+                    self.dbx.files_upload_session_append_v2(f.read(CHUNK_SIZE), cursor)
+                    cursor.offset = f.tell()
 
     def download(self, path, file):
         self.dbx.files_download_to_file(file, path)
