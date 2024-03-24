@@ -110,7 +110,7 @@ class DropBoxModel():
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
-            self.synchronizeThread.addTask(path, os.path.join(self.rootdir, path))
+            self.synchronizeThread.addTask(os.path.join(self.rootdir, path), path)
             return 0
         except Exception as e:
             print(e)
