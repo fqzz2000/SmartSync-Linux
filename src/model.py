@@ -1,17 +1,41 @@
 # commandline interface for the program
+import threading
 from data import DropboxInterface
 from lib import FUSE
 import os
 import shutil
+from functools import wraps
+
 
 class DropBoxModel():
     def __init__(self, interface, rootdir) -> None:
         self.dbx = interface
         self.rootdir = rootdir
+        self.mutex = threading.Lock()
 
     def __del__(self):
         pass 
 
+    @classmethod
+    def lockWrapper(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            self.mutex.acquire()
+            ret = func(self, *args, **kwargs)
+            self.mutex.release()
+            return ret
+        return wrapper
+    
+    @lockWrapper
+    def synchroneous(self, func):
+        '''
+        syncrhonize current data with dropbox
+        milestone 1: only upload the file to dropbox
+        '''
+
+        pass
+    
+    @lockWrapper
     def read(self, path:str, file:str) -> int:
         '''
         download the file from dropbox
@@ -22,7 +46,8 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return -1
-        
+    
+    @lockWrapper
     def write(self, path:str) -> int:
         '''
         upload the file to dropbox
@@ -36,6 +61,7 @@ class DropBoxModel():
             print(e)
             return -1
         
+    @lockWrapper
     def listFolder(self, path:str) -> dict:
         '''
         list the folder in the dropbox
@@ -46,6 +72,7 @@ class DropBoxModel():
             print(e)
             return None
         
+    @lockWrapper
     def getmetadata(self, path:str) -> dict:
         '''
         get the metadata of the file
@@ -56,6 +83,7 @@ class DropBoxModel():
             print(e)
             return None
         
+    @lockWrapper
     def downloadAll(self) -> int:
         '''
         download all the files in the dropbox
@@ -77,6 +105,7 @@ class DropBoxModel():
             print(e)
             return -1
 
+    @lockWrapper
     def clearAll(self) -> int:
         '''
         clear all the files in the dropbox
@@ -97,6 +126,7 @@ class DropBoxModel():
                 return -1
         return 0
 
+    @lockWrapper
     def createFolder(self, path:str, mode) -> int:
         '''
         create a folder in the dropbox
@@ -110,6 +140,7 @@ class DropBoxModel():
             print(e)
             return -1
 
+    @lockWrapper
     def deleteFolder(self, path:str) -> int:
         '''
         delete a file in the dropbox
@@ -123,6 +154,7 @@ class DropBoxModel():
             print(e)
             return -1
         
+    @lockWrapper
     def deleteFile(self, path:str) -> int:
         '''
         delete a file in the dropbox
@@ -136,6 +168,7 @@ class DropBoxModel():
             print(e)
             return -1
         
+    @lockWrapper
     def move(self, old:str, new:str) -> int:
         '''
         rename a file in the dropbox
