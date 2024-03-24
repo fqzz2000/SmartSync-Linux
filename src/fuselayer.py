@@ -163,7 +163,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     def statfs(self, path):
         logger.info(f"STATFS CALLED WITH ID {random.randint(0, 100)}")
 
-        total_space, used_space = self.getSpaceUsage()
+        total_space, used_space = self.db.getSpaceUsage()
         free_space = total_space - used_space
         block_size = 512
         total_blocks = total_space // block_size
