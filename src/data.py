@@ -19,7 +19,7 @@ def stopwatch(message):
 class DropboxInterface:
     def __init__(self, token):
         self.dbx = dropbox.Dropbox(token)
-
+        
     def list_folder(self, path):
         res = self.dbx.files_list_folder(path)
         rv = {}
@@ -47,14 +47,15 @@ class DropboxInterface:
                         client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
                         mute=True,
                         autorename=True)
+                    print('uploaded as', res.name.encode('utf8'))
+                    return res
                 else:
                     self.upload_large_file(file, path, len(data))
 
             except dropbox.exceptions.ApiError as err:
                 print('*** API error', err)
                 return None
-        print('uploaded as', res.name.encode('utf8'))
-        return res
+        
 
     def upload_large_file(self, file, path, size):
         CHUNK_SIZE = 4 * 1024 * 1024
