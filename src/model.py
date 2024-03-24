@@ -1,17 +1,97 @@
 # commandline interface for the program
+from collections import deque
+import threading
+import time
 from data import DropboxInterface
 from lib import FUSE
 import os
 import shutil
+from functools import wraps
+from loguru import logger
+
+def lockWrapper(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self.mutex.acquire()
+        ret = func(self, *args, **kwargs)
+        self.mutex.release()
+        return ret
+    return wrapper
+
 
 class DropBoxModel():
+    class UploadingThread():
+        def __init__(self, interface, lock, synchronizeInterval=5, maxSynchronizeInterval=60) -> None:
+            self.outstandingQueue = []
+            self.synInterval = synchronizeInterval
+            self.maxSynInterval = maxSynchronizeInterval
+            self.dbx = interface
+            self.lastMaxSyncTime = time.time()
+            self._stop = False
+            self.mutex = lock
+
+
+        
+        def __call__(self):
+            '''
+            synchronization loop
+            '''
+            while not self._stop:
+                time.sleep(self.synInterval)
+                logger.warning("Synchronization Tiggered")
+                self.synchronize()
+
+        @lockWrapper
+        def synchronize(self):
+            '''
+            synchronize all the files in the queue 
+            if the time is greater than the max synchronization interval, then upload all the files in the queue
+            otherwise, only upload the files that are older than the synchronization interval
+            '''
+            if len(self.outstandingQueue) > 0:
+                maxSync = time.time() - self.lastMaxSyncTime > self.maxSynInterval
+                newQueue = []
+                for path, file, timestamp in self.outstandingQueue:
+                    if maxSync:
+                        self.dbx.upload(path, file, True)
+                    elif time.time() - timestamp > self.synInterval:
+                        self.dbx.upload(path, file, True)
+                    else:
+                        newQueue.append((path, file, timestamp))
+                if maxSync:
+                    logger.warning("Max synchronization interval reached, uploading all files")
+                    self.lastMaxSyncTime = time.time()
+                self.outstandingQueue = newQueue
+
+        def stop(self):
+            self._stop = True
+        
+        def addTask(self, path:str, file:str):
+            '''
+            search the queue, if the file is already in the queue, update the timestamp
+            otherwise, add the file to the queue
+            '''
+            logger.info(f"Adding task {path} {file}")
+            for i in range(len(self.outstandingQueue)):
+                if self.outstandingQueue[i][0] == path:
+                    self.outstandingQueue[i] = (path, file, time.time())
+                    return
+            self.outstandingQueue.append((path, file, time.time()))
+
     def __init__(self, interface, rootdir) -> None:
         self.dbx = interface
         self.rootdir = rootdir
+        self.mutex = threading.Lock()
+        self.synchronizeThread = self.UploadingThread(self.dbx, self.mutex)
+        self.thread = threading.Thread(target=self.synchronizeThread)
+        self.thread.start()
+        print("Model initialized")
 
-    def __del__(self):
-        pass 
-
+    def stop(self):
+        self.synchronizeThread.stop()
+        self.thread.join()
+    
+    @lockWrapper
     def read(self, path:str, file:str) -> int:
         '''
         download the file from dropbox
@@ -22,7 +102,8 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return -1
-        
+    
+    @lockWrapper
     def write(self, path:str) -> int:
         '''
         upload the file to dropbox
@@ -30,7 +111,8 @@ class DropBoxModel():
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
-            self.dbx.upload(self.rootdir + path, path, True)
+
+            self.synchronizeThread.addTask(self.rootdir+path, path)
             return 0
         except Exception as e:
             print(e)
@@ -46,6 +128,7 @@ class DropBoxModel():
             print(e)
             return None
         
+    @lockWrapper
     def getmetadata(self, path:str) -> dict:
         '''
         get the metadata of the file
@@ -56,6 +139,7 @@ class DropBoxModel():
             print(e)
             return None
         
+    @lockWrapper
     def downloadAll(self) -> int:
         '''
         download all the files in the dropbox
@@ -77,6 +161,7 @@ class DropBoxModel():
             print(e)
             return -1
 
+    @lockWrapper
     def clearAll(self) -> int:
         '''
         clear all the files in the dropbox
@@ -97,6 +182,7 @@ class DropBoxModel():
                 return -1
         return 0
 
+    @lockWrapper
     def createFolder(self, path:str, mode) -> int:
         '''
         create a folder in the dropbox
@@ -110,6 +196,7 @@ class DropBoxModel():
             print(e)
             return -1
 
+    @lockWrapper
     def deleteFolder(self, path:str) -> int:
         '''
         delete a file in the dropbox
@@ -123,6 +210,7 @@ class DropBoxModel():
             print(e)
             return -1
         
+    @lockWrapper
     def deleteFile(self, path:str) -> int:
         '''
         delete a file in the dropbox
@@ -136,6 +224,7 @@ class DropBoxModel():
             print(e)
             return -1
         
+    @lockWrapper
     def move(self, old:str, new:str) -> int:
         '''
         rename a file in the dropbox

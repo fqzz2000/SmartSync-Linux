@@ -6,7 +6,6 @@ import logging
 from errno import ENOENT
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 import errno
-from time import sleep, time
 from collections import defaultdict
 import os
 from loguru import logger
@@ -19,7 +18,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         self.rootdir = rootdir
         print("ROOTDIR IS", rootdir)
         self.db = dbmodel
-        logger.add("dropbox.log", level="DEBUG")
+        logger.add("dropbox.log", level="WARNING")
 
     def chmod(self, path, mode):
         logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}")
@@ -107,10 +106,11 @@ class FuseDropBox(LoggingMixIn, Operations):
     def read(self, path, size, offset, fh):
         id = random.randint(0, 100)
         logger.info(f"READ CALLED WITH ID {id}")
+<<<<<<< HEAD
+=======
         logger.debug(f"STARTING READ WITH ID {id}")
+>>>>>>> 35f61e6dc769fe2bd7af4d03336a04aa76c1565d
         data = os.pread(fh, size, offset)
-        logger.debug(f"ENDING READ WITH ID {id}")
-
         return data
 
     def readdir(self, path, fh):
@@ -209,7 +209,8 @@ class FuseDropBox(LoggingMixIn, Operations):
         os.utime(path, times)
 
     def write(self, path, data, offset, fh):
-        logger.info(f"WRITE CALLED WITH ID {random.randint(0, 100)}")
+        id = random.randint(0, 100)
+        logger.info(f"WRITE CALLED WITH ID {id}")
         return os.pwrite(fh, data, offset)
 
     def release(self, path, fh):
