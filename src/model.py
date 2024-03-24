@@ -22,15 +22,13 @@ def lockWrapper(func):
 class DropBoxModel():
     class UploadingThread():
         def __init__(self, interface, lock, synchronizeInterval=5, maxSynchronizeInterval=60) -> None:
-            self.outstandingQueue = []
+            self.outstandingQueue = {}
             self.synInterval = synchronizeInterval
             self.maxSynInterval = maxSynchronizeInterval
             self.dbx = interface
             self.lastMaxSyncTime = time.time()
             self._stop = False
             self.mutex = lock
-
-
         
         def __call__(self):
             '''
@@ -50,14 +48,16 @@ class DropBoxModel():
             '''
             if len(self.outstandingQueue) > 0:
                 maxSync = time.time() - self.lastMaxSyncTime > self.maxSynInterval
-                newQueue = []
-                for path, file, timestamp in self.outstandingQueue:
+                newQueue = {}
+                for k,v in self.outstandingQueue.items():
+                    path, file = k
+                    timestamp = v
                     if maxSync:
                         self.dbx.upload(path, file, True)
                     elif time.time() - timestamp > self.synInterval:
                         self.dbx.upload(path, file, True)
                     else:
-                        newQueue.append((path, file, timestamp))
+                        newQueue[(path, file)] = timestamp
                 if maxSync:
                     logger.warning("Max synchronization interval reached, uploading all files")
                     self.lastMaxSyncTime = time.time()
@@ -72,11 +72,10 @@ class DropBoxModel():
             otherwise, add the file to the queue
             '''
             logger.info(f"Adding task {path} {file}")
-            for i in range(len(self.outstandingQueue)):
-                if self.outstandingQueue[i][0] == path:
-                    self.outstandingQueue[i] = (path, file, time.time())
-                    return
-            self.outstandingQueue.append((path, file, time.time()))
+            if self.outstandingQueue.get((path, file), None) is not None:
+                self.outstandingQueue[(path, file)] = time.time()
+            else:
+                self.outstandingQueue[(path, file)] = time.time()
 
     def __init__(self, interface, rootdir) -> None:
         self.dbx = interface
