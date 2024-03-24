@@ -9,8 +9,16 @@ import dropbox
 import datetime
 import time
 import os
+import signal
 
 WORKING_DIR = "/home/qf37/ece566/finalproj/SmartSync-Linux/"
+
+def signal_handler(sig, frame):
+    print("Caught signal", sig)
+    model.stop()
+    sys.exit(0)
+signal.signal(signal.SIGTERM, signal_handler)
+
 if __name__ == "__main__":
     import sys
 

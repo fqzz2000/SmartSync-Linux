@@ -7,6 +7,7 @@ from lib import FUSE
 import os
 import shutil
 from functools import wraps
+from loguru import logger
 
 def lockWrapper(func):
     @wraps(func)
@@ -37,6 +38,7 @@ class DropBoxModel():
             '''
             while not self._stop:
                 time.sleep(self.synInterval)
+                logger.info("Synchronization Tiggered")
                 self.synchronize()
 
         @lockWrapper
@@ -60,16 +62,15 @@ class DropBoxModel():
                     self.lastMaxSyncTime = time.time()
                 self.outstandingQueue = newQueue
 
-        @lockWrapper
         def stop(self):
             self._stop = True
         
-        @lockWrapper
         def addTask(self, path:str, file:str):
             '''
             search the queue, if the file is already in the queue, update the timestamp
             otherwise, add the file to the queue
             '''
+            logger.info(f"Adding task {path} {file}")
             for i in range(len(self.outstandingQueue)):
                 if self.outstandingQueue[i][0] == path:
                     self.outstandingQueue[i] = (path, file, time.time())
@@ -85,9 +86,9 @@ class DropBoxModel():
         self.thread.start()
         print("Model initialized")
 
-    def __del__(self):
+    def stop(self):
         self.synchronizeThread.stop()
-        pass 
+        self.thread.join()
     
     @lockWrapper
     def read(self, path:str, file:str) -> int:
@@ -115,7 +116,6 @@ class DropBoxModel():
             print(e)
             return -1
         
-    @lockWrapper
     def listFolder(self, path:str) -> dict:
         '''
         list the folder in the dropbox
