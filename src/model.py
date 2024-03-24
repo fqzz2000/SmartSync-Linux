@@ -166,9 +166,7 @@ class DropBoxModel():
         '''
         clear all the files in the dropbox
         '''
-        print(os.listdir(self.rootdir))
         for filename in os.listdir(self.rootdir):
-            print(filename)
             file_path = os.path.join(self.rootdir, filename)
             try:
                 if os.path.isfile(file_path):

@@ -49,6 +49,8 @@ def main():
 def start_daemon():
     if not os.path.exists(TMP_DIR):
         os.mkdir(TMP_DIR)
+    if not os.path.exists(WORKING_DIR):
+        os.mkdir(WORKING_DIR)
     if not os.path.exists(os.path.join(WORKING_DIR, ".cache")):
         os.mkdir(os.path.join(WORKING_DIR, ".cache"))
     if not os.path.exists(os.path.join(WORKING_DIR, "dropbox")):
@@ -57,10 +59,10 @@ def start_daemon():
     auth_flow = DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
 
     authorize_url = auth_flow.start()
-    print("1. Go to: " + authorize_url)
-    print("2. Click \"Allow\" (you might have to log in first).")
-    print("3. Copy the authorization code.")
     webbrowser.open(authorize_url)
+    print("1. Click \"Allow\" (you might have to log in first).")
+    print("2. Copy the authorization code.")
+    print("(Visit this url if your web browser fails to boot:" + authorize_url + ")")
     auth_code = input("Enter the authorization code here: ").strip()
 
     try:
@@ -69,6 +71,7 @@ def start_daemon():
         print('Error: %s' % (e,))
         exit(1)
     token = oauth_result.access_token
+    print("Start setting up your dropbox...")
     db = DropboxInterface(token)
     rootdir = os.path.join(WORKING_DIR, ".cache")
     model = DropBoxModel(db, rootdir)
@@ -77,6 +80,7 @@ def start_daemon():
     atexit.register(model.clearAll)
     if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
         os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
+    print("Setting up finished. Enjoy!")
     try:
         fuse = FUSE(
             FuseDropBox(rootdir, model),
@@ -90,11 +94,12 @@ def start_daemon():
         model.stop()
         sys.exit(1)
     
+    
 def stop_daemon():
     try:
         mount_point = os.path.join(WORKING_DIR, "dropbox")
         subprocess.run(['umount', mount_point], check=True)
-        os.unlink(mount_point)
+        shutil.rmtree(mount_point)
         rootdir = os.path.join(WORKING_DIR, ".cache")
         shutil.rmtree(rootdir)
         if os.path.exists(pid_file):

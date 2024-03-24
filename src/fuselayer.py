@@ -16,7 +16,7 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def __init__(self, rootdir, dbmodel):
         self.rootdir = rootdir
-        print("ROOTDIR IS", rootdir)
+#        print("ROOTDIR IS", rootdir)
         self.db = dbmodel
         logger.add("/tmp/dropbox.log", level="WARNING")
 
