@@ -10,6 +10,7 @@ import datetime
 import time
 import os
 
+WORKING_DIR = "/home/qf37/ece566/finalproj/SmartSync-Linux/"
 if __name__ == "__main__":
     import sys
 
@@ -18,17 +19,18 @@ if __name__ == "__main__":
         sys.exit(1)
     TOKEN = sys.argv[1]
     db = DropboxInterface(TOKEN)
-    rootdir = "/mnt/d/Duke/ECE566/finalproj/SmartSync-Linux/cache"
+    rootdir = os.path.join(WORKING_DIR, "cache")
     model = DropBoxModel(db, rootdir)
     model.clearAll()
     model.downloadAll()
     atexit.register(model.clearAll)
-    os.remove("dropbox.log")
+    if os.path.exists(os.path.join(WORKING_DIR, "dropbox.log")):
+        os.unlink(os.path.join(WORKING_DIR, "dropbox.log"))
 
     # logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
     fuse = FUSE(
         FuseDropBox(rootdir, model),
-        "/mnt/d/Duke/ECE566/finalproj/SmartSync-Linux/dropbox",
+        os.path.join(WORKING_DIR, "dropbox"),
         foreground=True,
         allow_other=True,
     )
