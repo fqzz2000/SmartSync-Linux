@@ -239,7 +239,16 @@ class DropBoxModel():
             print(e)
             return -1
     
-
+    def getSpaceUsage(self) -> dict:
+        '''
+        get the space usage of the dropbox
+        '''
+        try:
+            return self.dbx.users_get_space_usage()
+        except Exception as e:
+            print(e)
+            return None
+        
 
 if __name__ == "__main__":
     print("Hello World")
