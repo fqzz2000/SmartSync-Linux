@@ -106,10 +106,6 @@ class FuseDropBox(LoggingMixIn, Operations):
     def read(self, path, size, offset, fh):
         id = random.randint(0, 100)
         logger.info(f"READ CALLED WITH ID {id}")
-<<<<<<< HEAD
-=======
-        logger.debug(f"STARTING READ WITH ID {id}")
->>>>>>> 35f61e6dc769fe2bd7af4d03336a04aa76c1565d
         data = os.pread(fh, size, offset)
         return data
 
