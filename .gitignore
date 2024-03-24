@@ -4,3 +4,4 @@
 rootdir
 mntdir
 tokens.toml
+*.log
