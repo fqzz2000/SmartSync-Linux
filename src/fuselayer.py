@@ -41,7 +41,6 @@ class FuseDropBox(LoggingMixIn, Operations):
             path = path[1:]
 
         newpath = os.path.join(self.rootdir, path)
-        # print(newpath)
         try:
             ret = os.lstat(newpath)
             # print(ret)
@@ -105,9 +104,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     def mkdir(self, path, mode):
         if path[0] == "/":
             path = path[1:]
-        new_path = os.path.join(self.rootdir, path)
-        os.mkdir(new_path, mode)
-        self.db.createFolder("/" + path)
+        self.db.createFolder(path, mode)
 
     def open(self, path, flags):
         if path[0] == "/":
@@ -147,19 +144,13 @@ class FuseDropBox(LoggingMixIn, Operations):
             old = old[1:]
         if new[0] == "/":
             new = new[1:]
-        old_path = os.path.join(self.rootdir, old)
-        new_path = os.path.join(self.rootdir, new)
-        os.rename(old_path, new_path)
-        self.db.move("/" + old, "/" + new)  
-
+        self.db.move(old, new)  
 
     def rmdir(self, path):
         # with multiple level support, need to raise ENOTEMPTY if contains any files
         if path[0] == "/":
             path = path[1:]
-        new_path = os.path.join(self.rootdir, path)
-        os.rmdir(new_path)
-        self.db.deleteFile("/" + path)
+        self.db.deleteFolder(path)
 
     def setxattr(self, path, name, value, options, position=0):
         if path[0] == "/":
@@ -171,7 +162,6 @@ class FuseDropBox(LoggingMixIn, Operations):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
 
     def symlink(self, target, source):
-        
         # os.close(os.open(target, os.O_CREAT))
         if target[0] == "/":
             target = target[1:]
@@ -191,9 +181,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     def unlink(self, path):
         if path[0] == "/":
             path = path[1:]
-        new_path = os.path.join(self.rootdir, path)
-        os.unlink(new_path)
-        self.db.deleteFile("/" + path)
+        self.db.deleteFile(path)
 
     def utimens(self, path, times=None):
         if path[0] == "/":

@@ -41,11 +41,15 @@ class DropboxInterface:
             data = f.read()
         with stopwatch('upload %d bytes' % len(data)):
             try:
+                # if len(data) <= 150 * 1024 * 1024:
                 res = self.dbx.files_upload(
                     data, path, mode,
                     client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
                     mute=True,
                     autorename=True)
+                # else:
+                #     res = self.dbx.files_upload_session_start(data)
+
             except dropbox.exceptions.ApiError as err:
                 print('*** API error', err)
                 return None

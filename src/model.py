@@ -12,7 +12,6 @@ class DropBoxModel():
     def __del__(self):
         pass 
 
-
     def read(self, path:str, file:str) -> int:
         '''
         download the file from dropbox
@@ -98,23 +97,40 @@ class DropBoxModel():
                 return -1
         return 0
 
-    def createFolder(self, path:str) -> int:
+    def createFolder(self, path:str, mode) -> int:
         '''
         create a folder in the dropbox
         '''
         try:
-            self.dbx.mkdir(path)
+            new_path = os.path.join(self.rootdir, path)
+            os.mkdir(new_path, mode)
+            self.dbx.mkdir("/" + path)
             return 0
         except Exception as e:
             print(e)
             return -1
 
+    def deleteFolder(self, path:str) -> int:
+        '''
+        delete a file in the dropbox
+        '''
+        try:
+            new_path = os.path.join(self.rootdir, path)
+            os.rmdir(new_path)
+            self.dbx.delete("/" + path)
+            return 0
+        except Exception as e:
+            print(e)
+            return -1
+        
     def deleteFile(self, path:str) -> int:
         '''
         delete a file in the dropbox
         '''
         try:
-            self.dbx.delete(path)
+            new_path = os.path.join(self.rootdir, path)
+            os.unlink(new_path)
+            self.dbx.delete("/" + path)
             return 0
         except Exception as e:
             print(e)
@@ -125,11 +141,16 @@ class DropBoxModel():
         rename a file in the dropbox
         '''
         try:
-            self.dbx.move(old, new)
+            old_path = os.path.join(self.rootdir, old)
+            new_path = os.path.join(self.rootdir, new)
+            os.rename(old_path, new_path)
+            self.dbx.move("/" + old, "/" + new)
             return 0
         except Exception as e:
             print(e)
             return -1
-        
+    
+
+
 if __name__ == "__main__":
     print("Hello World")

@@ -23,7 +23,7 @@ if __name__ == "__main__":
     model.downloadAll()
     atexit.register(model.clearAll)
     os.remove('dropbox.log')
-    logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
+    # logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
     fuse = FUSE(FuseDropBox(rootdir, model), "/home/tq22/ece566/SmartSync-Linux/dropbox", foreground=True, allow_other=True)
 
     
