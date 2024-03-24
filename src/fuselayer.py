@@ -108,7 +108,6 @@ class FuseDropBox(LoggingMixIn, Operations):
         id = random.randint(0, 100)
         logger.info(f"READ CALLED WITH ID {id}")
         logger.debug(f"STARTING READ WITH ID {id}")
-        sleep(30)
         data = os.pread(fh, size, offset)
         logger.debug(f"ENDING READ WITH ID {id}")
 
@@ -163,7 +162,20 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def statfs(self, path):
         logger.info(f"STATFS CALLED WITH ID {random.randint(0, 100)}")
-        return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
+
+        total_space, used_space = self.db.getSpaceUsage()
+        free_space = total_space - used_space
+        block_size = 512
+        total_blocks = total_space // block_size
+        free_blocks = free_space // block_size
+        return {
+            'f_bsize': block_size,
+            'f_blocks': total_blocks,
+            'f_bfree': free_blocks,
+            'f_bavail': free_blocks,
+            'f_files': 0, 
+            'f_ffree': 0,
+        }
 
     def symlink(self, target, source):
         logger.info(f"SYMLINK CALLED WITH ID {random.randint(0, 100)}")

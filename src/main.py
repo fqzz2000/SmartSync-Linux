@@ -10,7 +10,7 @@ import datetime
 import time
 import os
 
-WORKING_DIR = "/home/qf37/ece566/finalproj/SmartSync-Linux/"
+WORKING_DIR = "/home/tq22/ece566/SmartSync-Linux/"
 if __name__ == "__main__":
     import sys
 

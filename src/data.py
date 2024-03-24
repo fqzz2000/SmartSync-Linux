@@ -99,6 +99,16 @@ class DropboxInterface:
     def move(self, from_path, to_path):
         self.dbx.files_move(from_path, to_path, autorename=True)
 
+    def users_get_space_usage(self):
+        try:
+            usage = self.dbx.users_get_space_usage()
+            total_space = usage.allocation.get_individual().allocated
+            used_space = usage.used
+            return total_space, used_space
+        except dropbox.exceptions.ApiError as err:
+            print(f"API Error: {err}")
+            return 0, 0
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) != 2:
