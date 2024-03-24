@@ -18,7 +18,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         self.rootdir = rootdir
         print("ROOTDIR IS", rootdir)
         self.db = dbmodel
-        logger.add("dropbox.log", level="DEBUG")
+        logger.add("dropbox.log", level="WARNING")
 
     def chmod(self, path, mode):
         logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}")

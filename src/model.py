@@ -38,7 +38,7 @@ class DropBoxModel():
             '''
             while not self._stop:
                 time.sleep(self.synInterval)
-                logger.info("Synchronization Tiggered")
+                logger.warning("Synchronization Tiggered")
                 self.synchronize()
 
         @lockWrapper
@@ -59,6 +59,7 @@ class DropBoxModel():
                     else:
                         newQueue.append((path, file, timestamp))
                 if maxSync:
+                    logger.warning("Max synchronization interval reached, uploading all files")
                     self.lastMaxSyncTime = time.time()
                 self.outstandingQueue = newQueue
 
@@ -110,7 +111,8 @@ class DropBoxModel():
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
-            self.synchronizeThread.addTask(os.path.join(self.rootdir, path), path)
+
+            self.synchronizeThread.addTask(self.rootdir+path, path)
             return 0
         except Exception as e:
             print(e)
