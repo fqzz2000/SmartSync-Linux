@@ -13,14 +13,13 @@ import os
 import signal
 import sys
 import argparse
-import daemon
-from daemon import pidfile
 import subprocess
 import shutil
+import webbrowser
 
 APP_KEY = "d9egn886112d2f4"
 APP_SECRET = "dlrt80nabugy3ks"
-WORKING_DIR = os.path.expanduser("~")
+WORKING_DIR = os.path.expanduser("~/Desktop")
 TMP_DIR = "/tmp/dropbox"
 pid_file = os.path.join(TMP_DIR, "dropbox.pid")
 
@@ -61,6 +60,7 @@ def start_daemon():
     print("1. Go to: " + authorize_url)
     print("2. Click \"Allow\" (you might have to log in first).")
     print("3. Copy the authorization code.")
+    webbrowser.open(authorize_url)
     auth_code = input("Enter the authorization code here: ").strip()
 
     try:
