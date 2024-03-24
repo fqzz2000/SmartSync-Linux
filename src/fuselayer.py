@@ -192,6 +192,7 @@ class FuseDropBox(LoggingMixIn, Operations):
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         os.truncate(path, length)
+        self.db.write(path)
 
     def unlink(self, path):
         logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}")
@@ -208,12 +209,12 @@ class FuseDropBox(LoggingMixIn, Operations):
     def write(self, path, data, offset, fh):
         id = random.randint(0, 100)
         logger.info(f"WRITE CALLED WITH ID {id}")
-        return os.pwrite(fh, data, offset)
+        os.pwrite(fh, data, offset)
+        self.db.write(path)
 
     def release(self, path, fh):
         logger.info(f"RELEASE CALLED WITH ID {random.randint(0, 100)}")
         os.close(fh)
-        self.db.write(path)
         return 0
 
 
