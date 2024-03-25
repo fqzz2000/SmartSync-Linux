@@ -16,9 +16,10 @@ import argparse
 import subprocess
 import shutil
 import webbrowser
+import daemon
+from daemon import pidfile
 
-APP_KEY = "d9egn886112d2f4"
-APP_SECRET = "dlrt80nabugy3ks"
+APP_KEY = "p379vmpas0tf58c"
 WORKING_DIR = os.path.expanduser("~/Desktop")
 TMP_DIR = "/tmp/dropbox"
 pid_file = os.path.join(TMP_DIR, "dropbox.pid")
@@ -56,7 +57,7 @@ def start_daemon():
     if not os.path.exists(os.path.join(WORKING_DIR, "dropbox")):
         os.mkdir(os.path.join(WORKING_DIR, "dropbox"))
 
-    auth_flow = DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
+    auth_flow = DropboxOAuth2FlowNoRedirect(APP_KEY, use_pkce=True, token_access_type='offline')
 
     authorize_url = auth_flow.start()
     webbrowser.open(authorize_url)
@@ -74,25 +75,37 @@ def start_daemon():
     print("Start setting up your dropbox...")
     db = DropboxInterface(token)
     rootdir = os.path.join(WORKING_DIR, ".cache")
-    model = DropBoxModel(db, rootdir)
-    model.clearAll()
-    model.downloadAll()
-    atexit.register(model.clearAll)
     if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
         os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
-    print("Setting up finished. Enjoy!")
-    try:
-        fuse = FUSE(
-            FuseDropBox(rootdir, model),
-            os.path.join(WORKING_DIR, "dropbox"),
-            foreground=False,
-            allow_other=True,
-        )
-    except Exception as e:
-        with open(os.path.join(WORKING_DIR, "hi.txt"), "a") as file:
-            file.write(f"Error: {e}")
-        model.stop()
-        sys.exit(1)
+    if os.path.exists(os.path.join(TMP_DIR, "std_out.log")):
+        os.unlink(os.path.join(TMP_DIR, "std_out.log")) 
+    if os.path.exists(os.path.join(TMP_DIR, "std_err.log")):
+        os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
+    context = daemon.DaemonContext(
+        pidfile=pidfile.TimeoutPIDLockFile(pid_file),
+        stdout=open(os.path.join(TMP_DIR, 'std_out.log'), 'w+'),
+        stderr=open(os.path.join(TMP_DIR, 'std_err.log'), 'w+'),
+    )
+
+    with context:
+        model = DropBoxModel(db, rootdir)
+        model.clearAll()
+        model.downloadAll()
+        atexit.register(model.clearAll)
+        
+        try:
+            fuse = FUSE(
+                FuseDropBox(rootdir, model),
+                os.path.join(WORKING_DIR, "dropbox"),
+                foreground=True,
+                allow_other=True,
+            )
+        except Exception as e:
+            with open(os.path.join(WORKING_DIR, "hi.txt"), "a") as file:
+                file.write(f"Error: {e}")
+            model.stop()
+            sys.exit(1)
+    
     
     
 def stop_daemon():
