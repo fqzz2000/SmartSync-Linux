@@ -53,11 +53,13 @@ class DropBoxModel():
                     path, file = k
                     timestamp = v
                     if maxSync:
+                        logger.warning(f"Uploading {path} {file} because of max synchronization interval")
                         self.dbx.upload(path, file, True)
-                        logger.debug(f"Uploading {path} {file}")
+                        logger.warning(f"Uploading {path} {file} done")
                     elif time.time() - timestamp > self.synInterval:
+                        logger.warning(f"Uploading {path} {file} because of synchronization interval")
                         self.dbx.upload(path, file, True)
-                        logger.debug(f"Uploading {path} {file}")
+                        logger.warning(f"Uploading {path} {file} done")
                     else:
                         newQueue[(path, file)] = timestamp
                 if maxSync:

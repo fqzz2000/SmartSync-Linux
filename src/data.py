@@ -60,12 +60,12 @@ class DropboxInterface:
 
     def upload_large_file(self, file, path, size):
         CHUNK_SIZE = 10 * 1024 * 1024
-
+        logger.warning(f"Uploading {file} to {path} with size {size}")
         with open(file, "rb") as f:
             upload_session_start_result = self.dbx.files_upload_session_start(f.read(CHUNK_SIZE))
             cursor = dropbox.files.UploadSessionCursor(session_id=upload_session_start_result.session_id,
                                                         offset=f.tell())
-            commit = dropbox.files.CommitInfo(path=path, overwrite=True)
+            commit = dropbox.files.CommitInfo(path=path, mode=dropbox.files.WriteMode.overwrite)
 
             while f.tell() < size:
                 #logger.warning(f"Uploaded {f.tell()} of {size}")
