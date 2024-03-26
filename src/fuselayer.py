@@ -189,10 +189,12 @@ class FuseDropBox(LoggingMixIn, Operations):
     def truncate(self, path, length, fh=None):
         logger.info(f"TRUNCATE CALLED WITH ID {random.randint(0, 100)}")
         # make sure extending the file fills in zero bytes
-        if path[0] == "/":
-            path = path[1:]
-        path = os.path.join(self.rootdir, path)
-        os.truncate(path, length)
+        new_path = path
+        if new_path[0] == "/":
+            new_path = new_path[1:]
+        new_path = os.path.join(self.rootdir, new_path)
+        os.truncate(new_path, length)
+        logger.warning(f"GOING TO UPLOAD {path}")
         self.db.write(path)
         logger.warning(f"TRUNCATE DONE ADD UPLOAD TASK")
 
