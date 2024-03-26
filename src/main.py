@@ -11,7 +11,7 @@ import time
 import os
 import signal
 
-WORKING_DIR = "/home/qf37/ece566/finalproj/SmartSync-Linux/"
+WORKING_DIR = "/home/yl910/SmartSync-Linux/"
 
 def signal_handler(sig, frame):
     print("Caught signal", sig)

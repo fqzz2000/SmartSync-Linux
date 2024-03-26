@@ -66,11 +66,13 @@ class DropboxInterface:
             commit = dropbox.files.CommitInfo(path=path)
 
             while f.tell() < size:
+               
                 if (size - f.tell()) <= CHUNK_SIZE:
-                    self.dbx.files_upload_session_finish(f.read(CHUNK_SIZE), cursor, commit)
+                    self.dbx.files_upload_session_finish(f.read(CHUNK_SIZE), cursor, commit)    
                 else:
                     self.dbx.files_upload_session_append_v2(f.read(CHUNK_SIZE), cursor)
                     cursor.offset = f.tell()
+                    
 
     def download(self, path, file):
         self.dbx.files_download_to_file(file, path)

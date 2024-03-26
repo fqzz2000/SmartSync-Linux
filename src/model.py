@@ -29,6 +29,7 @@ class DropBoxModel():
             self.lastMaxSyncTime = time.time()
             self._stop = False
             self.mutex = lock
+           
         
         def __call__(self):
             '''
