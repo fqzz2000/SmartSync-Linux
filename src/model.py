@@ -76,6 +76,7 @@ class DropBoxModel():
                 except Exception as e:
                     # print to stderr
                     print(e, file=sys.stderr)
+                    return 
                 logger.warning(f"Upload {path} {file} done")
 
 
