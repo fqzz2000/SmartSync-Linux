@@ -3,7 +3,7 @@
 # Create a large log file
 
 # keep adding to the file regularly
-while true; do
-    echo "Adding to the file" >> dropbox/FUSE-TEST/largeLogFile.log
+for i in {1..10}; do
+    echo "This is a log message index $i" >> ~/Desktop/keepUpdatingFile.txt
     sleep 2
 done

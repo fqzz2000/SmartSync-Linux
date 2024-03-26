@@ -1,5 +1,6 @@
 # commandline interface for the program
 from collections import deque
+import sys
 import threading
 import time
 from data import DropboxInterface
@@ -29,6 +30,7 @@ class DropBoxModel():
             self.lastMaxSyncTime = time.time()
             self._stop = False
             self.mutex = lock
+            self.uploadingQueue = []
         
         def __call__(self):
             '''
@@ -39,33 +41,43 @@ class DropBoxModel():
                 logger.warning("Synchronization Tiggered")
                 self.synchronize()
 
-        @lockWrapper
         def synchronize(self):
             '''
             synchronize all the files in the queue 
             if the time is greater than the max synchronization interval, then upload all the files in the queue
             otherwise, only upload the files that are older than the synchronization interval
             '''
+            maxSync = time.time() - self.lastMaxSyncTime > self.maxSynInterval
+            if maxSync:
+                logger.warning("Max synchronization interval reached, uploading all files")
+                self.lastMaxSyncTime = time.time()
             if len(self.outstandingQueue) > 0:
-                maxSync = time.time() - self.lastMaxSyncTime > self.maxSynInterval
+            
                 newQueue = {}
+                self.mutex.acquire()
                 for k,v in self.outstandingQueue.items():
                     path, file = k
                     timestamp = v
                     if maxSync:
-                        logger.warning(f"Uploading {path} {file} because of max synchronization interval")
-                        self.dbx.upload(path, file, True)
-                        logger.warning(f"Uploading {path} {file} done")
+                        self.uploadingQueue.append((path, file))
                     elif time.time() - timestamp > self.synInterval:
-                        logger.warning(f"Uploading {path} {file} because of synchronization interval")
-                        self.dbx.upload(path, file, True)
-                        logger.warning(f"Uploading {path} {file} done")
+                        self.uploadingQueue.append((path, file))
                     else:
                         newQueue[(path, file)] = timestamp
-                if maxSync:
-                    logger.warning("Max synchronization interval reached, uploading all files")
-                    self.lastMaxSyncTime = time.time()
                 self.outstandingQueue = newQueue
+                self.mutex.release()
+
+            logger.warning(f"Uploading {len(self.uploadingQueue)} files")
+            while len(self.uploadingQueue) > 0:
+                path, file = self.uploadingQueue.pop()
+                logger.warning(f"Uploading {path} {file}")
+                try:
+                    self.dbx.upload(path, file, True)
+                except Exception as e:
+                    # print to stderr
+                    print(e, file=sys.stderr)
+                logger.warning(f"Upload {path} {file} done")
+
 
         def stop(self):
             self._stop = True
@@ -75,7 +87,7 @@ class DropBoxModel():
             search the queue, if the file is already in the queue, update the timestamp
             otherwise, add the file to the queue
             '''
-            logger.info(f"Adding task {path} {file}")
+            logger.warning(f"Task Added {path} {file}")
             if self.outstandingQueue.get((path, file), None) is not None:
                 self.outstandingQueue[(path, file)] = time.time()
             else:
