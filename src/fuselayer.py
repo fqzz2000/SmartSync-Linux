@@ -16,9 +16,9 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def __init__(self, rootdir, dbmodel):
         self.rootdir = rootdir
-        print("ROOTDIR IS", rootdir)
+#        print("ROOTDIR IS", rootdir)
         self.db = dbmodel
-        logger.add("dropbox.log", level="WARNING")
+        logger.add("/tmp/dropbox/dropbox.log", level="WARNING")
 
     def chmod(self, path, mode):
         logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}")
@@ -106,6 +106,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     def read(self, path, size, offset, fh):
         id = random.randint(0, 100)
         logger.info(f"READ CALLED WITH ID {id}")
+        logger.debug(f"STARTING READ WITH ID {id}")
         data = os.pread(fh, size, offset)
         return data
 
@@ -208,8 +209,10 @@ class FuseDropBox(LoggingMixIn, Operations):
     def write(self, path, data, offset, fh):
         id = random.randint(0, 100)
         logger.info(f"WRITE CALLED WITH ID {id}")
-        os.pwrite(fh, data, offset)
+        ret = os.pwrite(fh, data, offset)
         self.db.write(path)
+        return ret
+        
 
     def release(self, path, fh):
         logger.info(f"RELEASE CALLED WITH ID {random.randint(0, 100)}")
