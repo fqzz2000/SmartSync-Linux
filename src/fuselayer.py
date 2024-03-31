@@ -19,7 +19,7 @@ class FuseDropBox(LoggingMixIn, Operations):
 #        print("ROOTDIR IS", rootdir)
         self.db = dbmodel
         logger.remove()
-        logger.add("dropbox.log", level="WARNING")
+        logger.add("/tmp/dropbox/dropbox.log", level="WARNING")
 
     def chmod(self, path, mode):
         logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}")
@@ -189,11 +189,14 @@ class FuseDropBox(LoggingMixIn, Operations):
     def truncate(self, path, length, fh=None):
         logger.info(f"TRUNCATE CALLED WITH ID {random.randint(0, 100)}")
         # make sure extending the file fills in zero bytes
-        if path[0] == "/":
-            path = path[1:]
-        path = os.path.join(self.rootdir, path)
-        os.truncate(path, length)
+        new_path = path
+        if new_path[0] == "/":
+            new_path = new_path[1:]
+        new_path = os.path.join(self.rootdir, new_path)
+        os.truncate(new_path, length)
+        logger.warning(f"GOING TO UPLOAD {path}")
         self.db.write(path)
+        logger.warning(f"TRUNCATE DONE ADD UPLOAD TASK")
 
     def unlink(self, path):
         logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}")
@@ -212,6 +215,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"WRITE CALLED WITH ID {id}")
         ret = os.pwrite(fh, data, offset)
         self.db.write(path)
+        # logger.warning(f"WRITE DONE ADD UPLOAD TASK")
         return ret
         
 
