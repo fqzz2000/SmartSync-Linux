@@ -21,8 +21,8 @@ class DropboxInterface:
     def __init__(self, token):
         self.dbx = dropbox.Dropbox(token)
         
-    def list_folder(self, path):
-        res = self.dbx.files_list_folder(path)
+    def list_folder(self, path, recursive=False):
+        res = self.dbx.files_list_folder(path, recursive=recursive)
         rv = {}
         for entry in res.entries:
             rv[entry.name] = entry
