@@ -39,4 +39,4 @@ def events(userid):
     return Response(stream_with_context(stream_events(userid)), content_type='text/event-stream')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=True, ssl_context=('certificates/vcm-38030.vm.duke.edu_root_last.pem', 'certificates/vcm-38030.vm.duke.edu.key'))
+    app.run(host='0.0.0.0', port=5002, debug=True, ssl_context=('certificates/vcm-39026.vm.duke.edu_root_last.pem', 'certificates/vcm-39026.vm.duke.edu.key'))
