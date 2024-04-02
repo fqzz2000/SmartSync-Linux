@@ -18,6 +18,7 @@ import json
 import requests
 from loguru import logger
 from login_server import login_app
+from multiprocessing import Process
 
 APP_KEY = "p379vmpas0tf58c"
 SUBSCRIBE_URL = "https://vcm-39026.vm.duke.edu:5002/events"
@@ -27,6 +28,40 @@ pid_file = os.path.join(TMP_DIR, "dropbox.pid")
 auth_token = None
 user_id = None
 
+from flask import Flask, request, redirect, session
+import dropbox
+import requests
+import os
+
+login_app = Flask(__name__)
+login_app.secret_key = os.urandom(24)
+
+
+REDIRECT_URI = 'http://localhost:5000/oauth2/callback'
+
+auth_flow = dropbox.DropboxOAuth2Flow(APP_KEY, REDIRECT_URI, session, 'dropbox-auth-csrf-token', use_pkce=True, token_access_type='offline')
+
+@login_app.route('/start')
+def start():
+    authorize_url = auth_flow.start()
+    print(authorize_url)
+    return redirect(authorize_url)
+
+@login_app.route('/oauth2/callback')
+def callback():
+    try:
+        oauth_result = auth_flow.finish(request.args)
+        # print(oauth_result.access_token)
+        # url = 'http://localhost:5001/'
+        # data = {'token': oauth_result.access_token}
+        # requests.post(url, json=data)
+        global auth_token
+        auth_token = oauth_result.access_token
+        event.set()
+        return 'Success'
+    except dropbox.oauth.DropboxOAuth2FlowError as e:
+        return 'Error: %s' % (e,)
+    
 # def signal_handler(sig, frame):
 #     print("Caught signal", sig)
 #     model.stop()
@@ -101,19 +136,19 @@ def start_daemon():
     # fetching auth token
     global event
     event = threading.Event()
-    login_app_thread = threading.Thread(target=run_login_server)
-    login_app_thread.daemon = True
-    login_app_thread.start()
-    login_server_address = ('127.0.0.1', 5001)
-    httpd = HTTPServer(login_server_address, OAuthRequestHandler)
-    login_server_thread = threading.Thread(target=httpd.serve_forever)
-    login_server_thread.daemon = True
-    login_server_thread.start()
+    login_server_process = Process(target=run_login_server)
+    login_server_process.start()
+    # login_server_address = ('127.0.0.1', 5001)
+    # httpd = HTTPServer(login_server_address, OAuthRequestHandler)
+    # login_server_thread = threading.Thread(target=httpd.serve_forever)
+    # login_server_thread.daemon = True
+    # login_server_thread.start()
     authorize_url = "http://localhost:5000/start"
     webbrowser.open(authorize_url)
     event.wait()
-    requests.post("http://localhost:5000/shutdown")
-    httpd.shutdown()
+    login_server_process.terminate()
+    login_server_process.join()
+    # httpd.shutdown()
     
     # setting up dropbox instance
     global auth_token
