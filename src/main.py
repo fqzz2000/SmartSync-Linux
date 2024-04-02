@@ -17,6 +17,7 @@ import threading
 import json
 import requests
 from loguru import logger
+from login_server import login_app
 
 APP_KEY = "p379vmpas0tf58c"
 SUBSCRIBE_URL = "https://vcm-39026.vm.duke.edu:5002/events"
@@ -31,6 +32,9 @@ user_id = None
 #     model.stop()
 #     sys.exit(0)
 # signal.signal(signal.SIGTERM, signal_handler)
+
+def run_login_server():
+    login_app.run(debug=True, port=5000)
 
 class OAuthRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -97,14 +101,18 @@ def start_daemon():
     # fetching auth token
     global event
     event = threading.Event()
+    login_app_thread = threading.Thread(target=run_login_server)
+    login_app_thread.daemon = True
+    login_app_thread.start()
+    login_server_address = ('127.0.0.1', 5001)
+    httpd = HTTPServer(login_server_address, OAuthRequestHandler)
+    login_server_thread = threading.Thread(target=httpd.serve_forever)
+    login_server_thread.daemon = True
+    login_server_thread.start()
     authorize_url = "http://localhost:5000/start"
     webbrowser.open(authorize_url)
-    server_address = ('127.0.0.1', 5001)
-    httpd = HTTPServer(server_address, OAuthRequestHandler)
-    server_thread = threading.Thread(target=httpd.serve_forever)
-    server_thread.daemon = True
-    server_thread.start()
     event.wait()
+    requests.post("http://localhost:5000/shutdown")
     httpd.shutdown()
     
     # setting up dropbox instance
@@ -127,9 +135,9 @@ def start_daemon():
         global user_id
         user_id = db.dbx.users_get_current_account().account_id
         url = f"{SUBSCRIBE_URL}/{user_id}"
-        thread = threading.Thread(target=listen_for_events, args=(url,))
-        thread.daemon = True
-        thread.start()
+        subscribe_thread = threading.Thread(target=listen_for_events, args=(url,))
+        subscribe_thread.daemon = True
+        subscribe_thread.start()
 
         model = DropBoxModel(db, rootdir)
         model.clearAll()
