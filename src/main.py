@@ -11,7 +11,7 @@ import subprocess
 import shutil
 import daemon
 from daemon import pidfile
-from http.server import BaseHTTPRequestHandler, HTTPServer.
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import webbrowser
 import threading
 import json
@@ -108,10 +108,12 @@ def start_daemon():
     httpd.shutdown()
     
     # setting up dropbox instance
+    global auth_token
     os.environ['MY_APP_AUTH_TOKEN'] = auth_token
     print("Start setting up your dropbox...")
     
     # start daemon
+    
     context = daemon.DaemonContext(
         pidfile=pidfile.TimeoutPIDLockFile(pid_file),
         stdout=open(os.path.join(TMP_DIR, 'std_out.log'), 'w+'),
