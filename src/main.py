@@ -19,7 +19,7 @@ import requests
 from loguru import logger
 
 APP_KEY = "p379vmpas0tf58c"
-SUBSCRIBE_URL = "https://vcm-38030.vm.duke.edu:5002/events"
+SUBSCRIBE_URL = "https://vcm-39026.vm.duke.edu:5002/events"
 WORKING_DIR = os.path.expanduser("~/Desktop")
 TMP_DIR = "/tmp/dropbox"
 pid_file = os.path.join(TMP_DIR, "dropbox.pid")
