@@ -60,15 +60,16 @@ def run_login_server():
     login_app.run(debug=False, port=5000, use_reloader=False)
 
 def listen_for_events(url):
-    try:
-        response = requests.get(url, stream=True)
-        for line in response.iter_lines():
-            if line:
-                # log the line with logging
-                logger.warning(f'Event: {line}')
+    while True:
+        try:
+            response = requests.get(url, stream=True)
+            for line in response.iter_lines():
+                if line:
+                    # log the line with logging
+                    logger.warning(f'Event: {line}')
 
-    except Exception as e:
-        print(f"Error listening for events: {e}")
+        except Exception as e:
+            print(f"Error listening for events: {e}")
     
 def start_daemon():
     # create directories and clearing previous logs

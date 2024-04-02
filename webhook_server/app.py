@@ -2,6 +2,7 @@ from flask import Flask, request, Response, stream_with_context
 import os
 from queue import Queue
 import json
+import time
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -30,6 +31,8 @@ def stream_events(userid):
         if userid in user_queues and not user_queues[userid].empty():
             message = user_queues[userid].get()
             yield f"data: {message}\n\n"
+        yield ":heartbeat\n\n"
+        time.sleep(20)
 
 @app.route('/events/<userid>')
 def events(userid):
