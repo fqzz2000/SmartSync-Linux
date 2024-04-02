@@ -11,33 +11,28 @@ import subprocess
 import shutil
 import daemon
 from daemon import pidfile
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import webbrowser
 import threading
-import json
 import requests
 from loguru import logger
 from login_server import login_app
 from multiprocessing import Process, Queue
+from flask import Flask, request, redirect, session
+import dropbox
+import logging
 
 APP_KEY = "p379vmpas0tf58c"
 SUBSCRIBE_URL = "https://vcm-39026.vm.duke.edu:5002/events"
 WORKING_DIR = os.path.expanduser("~/Desktop")
 TMP_DIR = "/tmp/dropbox"
+REDIRECT_URI = 'http://localhost:5000/oauth2/callback'
 pid_file = os.path.join(TMP_DIR, "dropbox.pid")
 auth_token = None
 user_id = None
-
-from flask import Flask, request, redirect, session
-import dropbox
-import requests
-import os
-
 login_app = Flask(__name__)
 login_app.secret_key = os.urandom(24)
+logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
 queue = Queue()
-
-REDIRECT_URI = 'http://localhost:5000/oauth2/callback'
 
 auth_flow = dropbox.DropboxOAuth2Flow(APP_KEY, REDIRECT_URI, session, 'dropbox-auth-csrf-token', use_pkce=True, token_access_type='offline')
 
@@ -50,16 +45,10 @@ def start():
 def callback():
     try:
         oauth_result = auth_flow.finish(request.args)
-        # print(oauth_result.access_token)
-        # url = 'http://localhost:5001/'
-        # data = {'token': oauth_result.access_token}
-        # requests.post(url, json=data)
-        global auth_token
-        auth_token = oauth_result.access_token
-        queue.put(auth_token)
+        queue.put(oauth_result.access_token)
         return 'Success'
-    except dropbox.oauth.DropboxOAuth2FlowError as e:
-        return 'Error: %s' % (e,)
+    except Exception as e:
+        return f"Error: {e}"
     
 # def signal_handler(sig, frame):
 #     print("Caught signal", sig)
@@ -68,23 +57,7 @@ def callback():
 # signal.signal(signal.SIGTERM, signal_handler)
 
 def run_login_server():
-    print(f"Worker process PID: {os.getpid()}, Parent PID: {os.getppid()}")
-    login_app.run(debug=True, port=5000)
-
-class OAuthRequestHandler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        data = json.loads(post_data)
-        if 'token' in data:
-            global auth_token 
-            auth_token = data['token']
-            self.send_response(200)
-            self.end_headers()
-            event.set()
-        else:
-            self.send_response(400)
-            self.end_headers()
+    login_app.run(debug=False, port=5000, use_reloader=False)
 
 def listen_for_events(url):
     try:
@@ -92,30 +65,12 @@ def listen_for_events(url):
         for line in response.iter_lines():
             if line:
                 # log the line with logging
-                logger.warning(f"Event: {line}")
+                logger.warning(f'Event: {line}')
 
     except Exception as e:
         print(f"Error listening for events: {e}")
-
-def main():
-    parser = argparse.ArgumentParser(description="Dropbox CLI")
-    subparsers = parser.add_subparsers(dest='command')
-
-    parser_start = subparsers.add_parser('start', help='Start the dropbox daemon')
-    parser_start.set_defaults(func=start_daemon)
-
-    parser_stop = subparsers.add_parser('stop', help='Stop the dropbox daemon')
-    parser_stop.set_defaults(func=stop_daemon)
-
-    args = parser.parse_args()
-
-    if args.command is None:
-        parser.print_help()
-    else:
-        args.func()
-
+    
 def start_daemon():
-
     # create directories and clearing previous logs
     if not os.path.exists(TMP_DIR):
         os.mkdir(TMP_DIR)
@@ -134,36 +89,26 @@ def start_daemon():
         os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
 
     # fetching auth token
-#    global event
-#    event = threading.Event()
-    print(f"Main process PID: {os.getpid()}")
     login_server_process = Process(target=run_login_server)
     login_server_process.start()
-    # login_server_address = ('127.0.0.1', 5001)
-    # httpd = HTTPServer(login_server_address, OAuthRequestHandler)
-    # login_server_thread = threading.Thread(target=httpd.serve_forever)
-    # login_server_thread.daemon = True
-    # login_server_thread.start()
     authorize_url = "http://localhost:5000/start"
-    print(f"{os.getpid()}: browser launching...")
+    # print(f"{os.getpid()}: browser launching...")
     webbrowser.open(authorize_url)
     global auth_token
     while True:
         if not queue.empty():
             auth_token = queue.get()
-            print(auth_token)
             break;
-    print(f"{os.getpid()}: terminating child process...")
+    print("Auth token fetched successfully!")
+    print("Terminating login flask server...")
     login_server_process.terminate()
     login_server_process.join()
-    # httpd.shutdown()
     
     # setting up dropbox instance
     os.environ['MY_APP_AUTH_TOKEN'] = auth_token
-    print("Start setting up your dropbox...")
+    # print("Start setting up your dropbox...")
     
     # start daemon
-    
     context = daemon.DaemonContext(
         pidfile=pidfile.TimeoutPIDLockFile(pid_file),
         stdout=open(os.path.join(TMP_DIR, 'std_out.log'), 'w+'),
@@ -216,5 +161,21 @@ def stop_daemon():
     
 
 if __name__ == "__main__":
-    main()
+    
+    parser = argparse.ArgumentParser(description="Dropbox CLI")
+    subparsers = parser.add_subparsers(dest='command')
+
+    parser_start = subparsers.add_parser('start', help='Start the dropbox daemon')
+    parser_start.set_defaults(func=start_daemon)
+
+    parser_stop = subparsers.add_parser('stop', help='Stop the dropbox daemon')
+    parser_stop.set_defaults(func=stop_daemon)
+
+    args = parser.parse_args()
+
+    if args.command is None:
+        parser.print_help()
+    else:
+        args.func()
+
     
