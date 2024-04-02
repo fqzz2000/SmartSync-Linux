@@ -18,7 +18,7 @@ import json
 import requests
 from loguru import logger
 from login_server import login_app
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 
 APP_KEY = "p379vmpas0tf58c"
 SUBSCRIBE_URL = "https://vcm-39026.vm.duke.edu:5002/events"
@@ -35,7 +35,7 @@ import os
 
 login_app = Flask(__name__)
 login_app.secret_key = os.urandom(24)
-
+queue = Queue()
 
 REDIRECT_URI = 'http://localhost:5000/oauth2/callback'
 
@@ -44,7 +44,6 @@ auth_flow = dropbox.DropboxOAuth2Flow(APP_KEY, REDIRECT_URI, session, 'dropbox-a
 @login_app.route('/start')
 def start():
     authorize_url = auth_flow.start()
-    print(authorize_url)
     return redirect(authorize_url)
 
 @login_app.route('/oauth2/callback')
@@ -57,7 +56,7 @@ def callback():
         # requests.post(url, json=data)
         global auth_token
         auth_token = oauth_result.access_token
-        event.set()
+        queue.put(auth_token)
         return 'Success'
     except dropbox.oauth.DropboxOAuth2FlowError as e:
         return 'Error: %s' % (e,)
@@ -69,6 +68,7 @@ def callback():
 # signal.signal(signal.SIGTERM, signal_handler)
 
 def run_login_server():
+    print(f"Worker process PID: {os.getpid()}, Parent PID: {os.getppid()}")
     login_app.run(debug=True, port=5000)
 
 class OAuthRequestHandler(BaseHTTPRequestHandler):
@@ -134,8 +134,9 @@ def start_daemon():
         os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
 
     # fetching auth token
-    global event
-    event = threading.Event()
+#    global event
+#    event = threading.Event()
+    print(f"Main process PID: {os.getpid()}")
     login_server_process = Process(target=run_login_server)
     login_server_process.start()
     # login_server_address = ('127.0.0.1', 5001)
@@ -144,14 +145,20 @@ def start_daemon():
     # login_server_thread.daemon = True
     # login_server_thread.start()
     authorize_url = "http://localhost:5000/start"
+    print(f"{os.getpid()}: browser launching...")
     webbrowser.open(authorize_url)
-    event.wait()
+    global auth_token
+    while True:
+        if not queue.empty():
+            auth_token = queue.get()
+            print(auth_token)
+            break;
+    print(f"{os.getpid()}: terminating child process...")
     login_server_process.terminate()
     login_server_process.join()
     # httpd.shutdown()
     
     # setting up dropbox instance
-    global auth_token
     os.environ['MY_APP_AUTH_TOKEN'] = auth_token
     print("Start setting up your dropbox...")
     
