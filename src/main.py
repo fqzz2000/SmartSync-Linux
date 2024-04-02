@@ -64,7 +64,7 @@ def listen_for_events(url):
         try:
             response = requests.get(url, stream=True)
             for line in response.iter_lines():
-                if line:
+                if line and line[0] != b':'[0]:
                     # log the line with logging
                     logger.warning(f'Event: {line}')
 
