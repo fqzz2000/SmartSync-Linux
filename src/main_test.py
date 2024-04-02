@@ -1,5 +1,5 @@
 # cmd of the dropbox daemon
-from data import DropboxInterface
+from data.data import DropboxInterface
 from fuselayer import FuseDropBox
 from lib import FUSE
 from model import DropBoxModel
