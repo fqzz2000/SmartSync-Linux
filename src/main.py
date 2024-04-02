@@ -79,10 +79,6 @@ def start_daemon():
     if not os.path.exists(os.path.join(WORKING_DIR, "dropbox")):
         os.mkdir(os.path.join(WORKING_DIR, "dropbox"))
 
-    #auth_flow = DropboxOAuth2Flow(APP_KEY, redirect_uri=REDIRECT_URI, session=session, csrf_token_session_key='dropbox-auth-csrf-token', use_pkce=True, token_access_type='offline')
-    #requests.get(f"http://localhost:5000/start")
-    # authorize_url = response.text
-    # print(authorize_url)
     authorize_url = "http://localhost:5000/start"
     webbrowser.open(authorize_url)
     server_address = ('127.0.0.1', 5001)
@@ -92,16 +88,7 @@ def start_daemon():
     server_thread.start()
     event.wait()
     httpd.shutdown()
-    #exit the program
-    print(auth_token)
-    print("Dropbox is ready to use.")
-    exit(0)
-    # print("1. Click \"Allow\" (you might have to log in first).")
-    # print("2. Copy the authorization code.")
-    # print("(Visit this url if your web browser fails to boot:" + authorize_url + ")")
-    # auth_code = input("Enter the authorization code here: ").strip()
 
-    #token = oauth_result.access_token
     print("Start setting up your dropbox...")
     db = DropboxInterface(auth_token)
     rootdir = os.path.join(WORKING_DIR, ".cache")

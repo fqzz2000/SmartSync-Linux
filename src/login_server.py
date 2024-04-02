@@ -1,8 +1,10 @@
 from flask import Flask, request, redirect, session
 import dropbox
 import requests
+import os
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
 
 APP_KEY = 'p379vmpas0tf58c'
 REDIRECT_URI = 'http://localhost:5000/oauth2/callback'
