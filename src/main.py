@@ -3,31 +3,28 @@ from data import DropboxInterface
 from fuselayer import FuseDropBox
 from lib import FUSE
 from model import DropBoxModel
-import logging
 import atexit
-import dropbox
-from dropbox import DropboxOAuth2Flow
-import datetime
-import time
 import os
-import signal
 import sys
 import argparse
 import subprocess
 import shutil
-import webbrowser
 import daemon
 from daemon import pidfile
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer.
+import webbrowser
 import threading
 import json
+import requests
+from loguru import logger
 
 APP_KEY = "p379vmpas0tf58c"
-REDIRECT_URI = "http://localhost:9090"
+SUBSCRIBE_URL = "https://vcm-38030.vm.duke.edu:5002/events"
 WORKING_DIR = os.path.expanduser("~/Desktop")
 TMP_DIR = "/tmp/dropbox"
 pid_file = os.path.join(TMP_DIR, "dropbox.pid")
 auth_token = None
+user_id = None
 
 # def signal_handler(sig, frame):
 #     print("Caught signal", sig)
@@ -50,6 +47,17 @@ class OAuthRequestHandler(BaseHTTPRequestHandler):
             self.send_response(400)
             self.end_headers()
 
+def listen_for_events(url):
+    try:
+        response = requests.get(url, stream=True)
+        for line in response.iter_lines():
+            if line:
+                # log the line with logging
+                logger.warning(f"Event: {line}")
+
+    except Exception as e:
+        print(f"Error listening for events: {e}")
+
 def main():
     parser = argparse.ArgumentParser(description="Dropbox CLI")
     subparsers = parser.add_subparsers(dest='command')
@@ -68,8 +76,8 @@ def main():
         args.func()
 
 def start_daemon():
-    global event
-    event = threading.Event()
+
+    # create directories and clearing previous logs
     if not os.path.exists(TMP_DIR):
         os.mkdir(TMP_DIR)
     if not os.path.exists(WORKING_DIR):
@@ -78,7 +86,17 @@ def start_daemon():
         os.mkdir(os.path.join(WORKING_DIR, ".cache"))
     if not os.path.exists(os.path.join(WORKING_DIR, "dropbox")):
         os.mkdir(os.path.join(WORKING_DIR, "dropbox"))
+    rootdir = os.path.join(WORKING_DIR, ".cache")
+    if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
+        os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
+    if os.path.exists(os.path.join(TMP_DIR, "std_out.log")):
+        os.unlink(os.path.join(TMP_DIR, "std_out.log")) 
+    if os.path.exists(os.path.join(TMP_DIR, "std_err.log")):
+        os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
 
+    # fetching auth token
+    global event
+    event = threading.Event()
     authorize_url = "http://localhost:5000/start"
     webbrowser.open(authorize_url)
     server_address = ('127.0.0.1', 5001)
@@ -88,28 +106,33 @@ def start_daemon():
     server_thread.start()
     event.wait()
     httpd.shutdown()
-
+    
+    # setting up dropbox instance
+    os.environ['MY_APP_AUTH_TOKEN'] = auth_token
     print("Start setting up your dropbox...")
-    db = DropboxInterface(auth_token)
-    rootdir = os.path.join(WORKING_DIR, ".cache")
-    if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
-        os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
-    if os.path.exists(os.path.join(TMP_DIR, "std_out.log")):
-        os.unlink(os.path.join(TMP_DIR, "std_out.log")) 
-    if os.path.exists(os.path.join(TMP_DIR, "std_err.log")):
-        os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
+    
+    # start daemon
     context = daemon.DaemonContext(
         pidfile=pidfile.TimeoutPIDLockFile(pid_file),
         stdout=open(os.path.join(TMP_DIR, 'std_out.log'), 'w+'),
         stderr=open(os.path.join(TMP_DIR, 'std_err.log'), 'w+'),
     )
-
     with context:
+        auth_token = os.getenv('MY_APP_AUTH_TOKEN')
+        db = DropboxInterface(auth_token)
+
+        # setting up thread listening for updates
+        global user_id
+        user_id = db.dbx.users_get_current_account().account_id
+        url = f"{SUBSCRIBE_URL}/{user_id}"
+        thread = threading.Thread(target=listen_for_events, args=(url,))
+        thread.daemon = True
+        thread.start()
+
         model = DropBoxModel(db, rootdir)
         model.clearAll()
         model.downloadAll()
         atexit.register(model.clearAll)
-        
         try:
             fuse = FUSE(
                 FuseDropBox(rootdir, model),
