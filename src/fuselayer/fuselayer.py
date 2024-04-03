@@ -1,7 +1,7 @@
 #!/bin/python3
 # the fuse interaction layer
 import random
-from lib import FUSE, LoggingMixIn, Operations, FuseOSError
+from src.lib import FUSE, LoggingMixIn, Operations, FuseOSError
 import logging
 from errno import ENOENT
 from stat import S_IFDIR, S_IFLNK, S_IFREG

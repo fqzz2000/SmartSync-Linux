@@ -10,3 +10,4 @@ dropbox
 certificates/*
 *.pem
 *.key
+__pycache__

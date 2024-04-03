@@ -1,7 +1,8 @@
+
 import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import dropbox
-from data import DropboxInterface 
+from src.data.data import DropboxInterface 
 
 class TestDropboxInterface(unittest.TestCase):
         
@@ -9,7 +10,7 @@ class TestDropboxInterface(unittest.TestCase):
         self.token = 'fake_token'  
         self.interface = DropboxInterface(self.token)
 
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_list_folder(self, mock_dropbox):
         mock_response = MagicMock()
         mock_entry = MagicMock()
@@ -24,11 +25,11 @@ class TestDropboxInterface(unittest.TestCase):
         self.assertEqual(mock_entry, result['test_file.txt'])
 
 
-    @patch('data.dropbox.files.WriteMode')
-    @patch('data.os.path.getmtime')
-    @patch('data.time.gmtime')
-    @patch('data.open', new_callable=unittest.mock.mock_open, read_data=b'some data')
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.files.WriteMode')
+    @patch('src.data.data.os.path.getmtime')
+    @patch('src.data.data.time.gmtime')
+    @patch('src.data.data.open', new_callable=unittest.mock.mock_open, read_data=b'some data')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_upload_small_file(self, mock_dropbox, mock_open, mock_gmtime, mock_getmtime, mock_write_mode):
       
         mock_getmtime.return_value = 1000  
@@ -43,9 +44,9 @@ class TestDropboxInterface(unittest.TestCase):
         mock_dropbox().files_upload.assert_called_once()
         self.assertEqual(result.name, 'test_file.txt')
 
-    @patch('data.dropbox.files.UploadSessionCursor')
-    @patch('data.dropbox.files.CommitInfo')
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.files.UploadSessionCursor')
+    @patch('src.data.data.dropbox.files.CommitInfo')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_upload_large_file(self, mock_dropbox, mock_commit_info, mock_upload_session_cursor):
 
         mock_session_start_response = MagicMock()
@@ -57,7 +58,7 @@ class TestDropboxInterface(unittest.TestCase):
 
         m_open.return_value.tell.side_effect = [0, 4 * 1024 * 1024, 4 * 1024 * 1024, 8 * 1024 * 1024, 8 * 1024 * 1024, 8 * 1024 * 1024 + 1, 8 * 1024 * 1024 + 1]
 
-        with patch('data.open', m_open, create=True):
+        with patch('src.data.data.open', m_open, create=True):
             dbx_interface = DropboxInterface('fake_token')
             dbx_interface.upload_large_file('fake_file_path', '/fake_dropbox_path', 8 * 1024 * 1024 + 1)
 
@@ -66,7 +67,7 @@ class TestDropboxInterface(unittest.TestCase):
             mock_dropbox().files_upload_session_finish.assert_called_once()
 
     
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_download(self, mock_dropbox):
        
         dbx_interface = DropboxInterface('fake_token')
@@ -74,9 +75,9 @@ class TestDropboxInterface(unittest.TestCase):
         mock_dropbox().files_download_to_file.assert_called_once_with('fake_file_path', '/fake_dropbox_path')
 
 
-    @patch('data.dropbox.Dropbox')
-    @patch('data.zipfile.ZipFile')
-    @patch('data.os.remove')
+    @patch('src.data.data.dropbox.Dropbox')
+    @patch('src.data.data.zipfile.ZipFile')
+    @patch('src.data.data.os.remove')
     def test_download_folder(self, mock_remove, mock_zipfile, mock_dropbox):
 
         
@@ -89,21 +90,21 @@ class TestDropboxInterface(unittest.TestCase):
         mock_zipfile.assert_called_once_with('fake_file.zip', 'r')
         mock_remove.assert_called_once_with('fake_file.zip')
    
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_mkdir(self, mock_dropbox):
         
         dbx_interface = DropboxInterface('fake_token')
         dbx_interface.mkdir('/fake_dropbox_folder')
         mock_dropbox().files_create_folder.assert_called_once_with('/fake_dropbox_folder')
 
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_delete(self, mock_dropbox):
         
         dbx_interface = DropboxInterface('fake_token')
         dbx_interface.delete('/fake_dropbox_file')
         mock_dropbox().files_delete.assert_called_once_with('/fake_dropbox_file')
 
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_getmetadata(self, mock_dropbox):
         
         dbx_interface = DropboxInterface('fake_token')
@@ -121,14 +122,14 @@ class TestDropboxInterface(unittest.TestCase):
         self.assertEqual(result['name'], 'fake_name')
         self.assertEqual(result['preview_url'], 'http://fakeurl.com')
 
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_move(self, mock_dropbox):
         
         dbx_interface = DropboxInterface('fake_token')
         dbx_interface.move('/from_path', '/to_path')
         mock_dropbox().files_move.assert_called_once_with('/from_path', '/to_path', autorename=True)
 
-    @patch('data.dropbox.Dropbox')
+    @patch('src.data.data.dropbox.Dropbox')
     def test_users_get_space_usage(self, mock_dropbox):
         
         mock_space_usage = MagicMock()
