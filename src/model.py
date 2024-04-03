@@ -4,6 +4,8 @@ import sys
 import threading
 import time
 from data import DropboxInterface
+from unloading_thread import UploadingThread
+from downloading_thread import DownloadingThread
 from lib import FUSE
 import os
 import shutil
@@ -21,91 +23,28 @@ def lockWrapper(func):
 
 
 class DropBoxModel():
-    class UploadingThread():
-        def __init__(self, interface, lock, synchronizeInterval=5, maxSynchronizeInterval=60) -> None:
-            self.outstandingQueue = {}
-            self.synInterval = synchronizeInterval
-            self.maxSynInterval = maxSynchronizeInterval
-            self.dbx = interface
-            self.lastMaxSyncTime = time.time()
-            self._stop = False
-            self.mutex = lock
-            self.uploadingQueue = []
-        
-        def __call__(self):
-            '''
-            synchronization loop
-            '''
-            while not self._stop:
-                time.sleep(self.synInterval)
-                logger.warning("Synchronization Tiggered")
-                self.synchronize()
-
-        def synchronize(self):
-            '''
-            synchronize all the files in the queue 
-            if the time is greater than the max synchronization interval, then upload all the files in the queue
-            otherwise, only upload the files that are older than the synchronization interval
-            '''
-            maxSync = time.time() - self.lastMaxSyncTime > self.maxSynInterval
-            if maxSync:
-                logger.warning("Max synchronization interval reached, uploading all files")
-                self.lastMaxSyncTime = time.time()
-            if len(self.outstandingQueue) > 0:
-            
-                newQueue = {}
-                self.mutex.acquire()
-                for k,v in self.outstandingQueue.items():
-                    path, file = k
-                    timestamp = v
-                    if maxSync:
-                        self.uploadingQueue.append((path, file))
-                    elif time.time() - timestamp > self.synInterval:
-                        self.uploadingQueue.append((path, file))
-                    else:
-                        newQueue[(path, file)] = timestamp
-                self.outstandingQueue = newQueue
-                self.mutex.release()
-
-            logger.warning(f"Uploading {len(self.uploadingQueue)} files")
-            while len(self.uploadingQueue) > 0:
-                path, file = self.uploadingQueue.pop()
-                logger.warning(f"Uploading {path} {file}")
-                try:
-                    self.dbx.upload(path, file, True)
-                except Exception as e:
-                    # print to stderr
-                    print(e, file=sys.stderr)
-                    return 
-                logger.warning(f"Upload {path} {file} done")
 
 
-        def stop(self):
-            self._stop = True
-        
-        def addTask(self, path:str, file:str):
-            '''
-            search the queue, if the file is already in the queue, update the timestamp
-            otherwise, add the file to the queue
-            '''
-            logger.warning(f"Task Added {path} {file}")
-            if self.outstandingQueue.get((path, file), None) is not None:
-                self.outstandingQueue[(path, file)] = time.time()
-            else:
-                self.outstandingQueue[(path, file)] = time.time()
-
-    def __init__(self, interface, rootdir) -> None:
+    def __init__(self, interface, rootdir, swapdir) -> None:
         self.dbx = interface
         self.rootdir = rootdir
+        self.swapdir = swapdir
         self.mutex = threading.Lock()
-        self.synchronizeThread = self.UploadingThread(self.dbx, self.mutex)
+        self.synchronizeThread = UploadingThread(self.dbx, self.mutex)
+        self.downloadingThread = DownloadingThread(self.dbx, self.swapdir, self.rootdir)
         self.thread = threading.Thread(target=self.synchronizeThread)
+        self.dthread = threading.Thread(target=self.downloadingThread)
         self.thread.start()
+        self.dthread.start()
         print("Model initialized")
 
     def stop(self):
         self.synchronizeThread.stop()
+        self.downloadingThread.stop()
         self.thread.join()
+
+    def triggerDownload(self):
+        self.downloadingThread.addTask()
     
     @lockWrapper
     def read(self, path:str, file:str) -> int:
@@ -160,22 +99,7 @@ class DropBoxModel():
         '''
         download all the files in the dropbox
         '''
-        try:
-            dic = self.listFolder("")
-            for k, v in dic.items():
-                if len(k) == 0 or k[0] != "/":
-                    k = "/" + k
-                value_type = str(type(v))
-                if value_type == "<class 'dropbox.files.FolderMetadata'>":
-                    self.dbx.download_folder(k, self.rootdir + k, self.rootdir)
-                elif value_type == "<class 'dropbox.files.FileMetadata'>":
-                    self.dbx.download(k, self.rootdir + "/" + k)
-                else:
-                    raise Exception("Unknown type" + value_type)
-            return 0
-        except Exception as e:
-            print(e)
-            return -1
+        self.downloadingThread.addTask()
 
     @lockWrapper
     def clearAll(self) -> int:

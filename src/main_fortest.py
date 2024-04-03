@@ -29,7 +29,8 @@ if __name__ == "__main__":
     TOKEN = sys.argv[1]
     db = DropboxInterface(TOKEN)
     rootdir = os.path.join(WORKING_DIR, "cache")
-    model = DropBoxModel(db, rootdir)
+    swapdir = os.path.join(WORKING_DIR, "swap")
+    model = DropBoxModel(db, rootdir, swapdir)
     model.clearAll()
     model.downloadAll()
     atexit.register(model.clearAll)
