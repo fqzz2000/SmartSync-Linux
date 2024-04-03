@@ -7,3 +7,6 @@ tokens.toml
 *.log
 cache
 dropbox
+certificates/*
+*.pem
+*.key

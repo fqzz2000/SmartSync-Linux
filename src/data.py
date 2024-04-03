@@ -5,6 +5,7 @@ import os
 import time
 import datetime
 import contextlib
+from loguru import logger
 
 @contextlib.contextmanager
 def stopwatch(message):
@@ -19,7 +20,7 @@ def stopwatch(message):
 class DropboxInterface:
     def __init__(self, token):
         self.dbx = dropbox.Dropbox(token)
-
+        
     def list_folder(self, path):
         res = self.dbx.files_list_folder(path)
         rv = {}
@@ -47,32 +48,32 @@ class DropboxInterface:
                         client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
                         mute=True,
                         autorename=True)
+                    logger.warning(f'uploaded as {res.name}')
+                    return res
                 else:
                     self.upload_large_file(file, path, len(data))
-
+                    logger.warning(f'uploaded as {path}')
             except dropbox.exceptions.ApiError as err:
                 print('*** API error', err)
                 return None
-        print('uploaded as', res.name.encode('utf8'))
-        return res
+        
 
     def upload_large_file(self, file, path, size):
-        CHUNK_SIZE = 4 * 1024 * 1024
-
+        CHUNK_SIZE = 10 * 1024 * 1024
+        logger.warning(f"Uploading {file} to {path} with size {size}")
         with open(file, "rb") as f:
             upload_session_start_result = self.dbx.files_upload_session_start(f.read(CHUNK_SIZE))
             cursor = dropbox.files.UploadSessionCursor(session_id=upload_session_start_result.session_id,
                                                         offset=f.tell())
-            commit = dropbox.files.CommitInfo(path=path)
+            commit = dropbox.files.CommitInfo(path=path, mode=dropbox.files.WriteMode.overwrite)
 
             while f.tell() < size:
-               
+                #logger.warning(f"Uploaded {f.tell()} of {size}")
                 if (size - f.tell()) <= CHUNK_SIZE:
                     self.dbx.files_upload_session_finish(f.read(CHUNK_SIZE), cursor, commit)    
                 else:
                     self.dbx.files_upload_session_append_v2(f.read(CHUNK_SIZE), cursor)
-                    cursor.offset = f.tell()
-                    
+                    cursor.offset = f.tell()  
 
     def download(self, path, file):
         self.dbx.files_download_to_file(file, path)
