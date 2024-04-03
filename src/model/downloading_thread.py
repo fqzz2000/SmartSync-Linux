@@ -2,11 +2,11 @@ from datetime import datetime
 import threading
 import time
 from loguru import logger
-from data import DropboxInterface
+from src.data.data import DropboxInterface
 import dropbox
 import queue
 import os
-from utils import FilePath, FileInfo
+from src.utils.utils import FilePath, FileInfo
 
 
 class DownloadingThread():
@@ -164,7 +164,7 @@ class DownloadingThread():
                 # download the file
                 dList.append(k)
             else:
-                if datetime.timestamp(v.timestamp) > localFiles[k]:
+                if v.timestamp > localFiles[k]:
                     # download the file
                     dList.append(k)
 

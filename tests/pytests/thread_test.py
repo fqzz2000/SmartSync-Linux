@@ -2,8 +2,8 @@ import os
 import time
 import pytest
 from unittest.mock import patch, Mock
-from .downloading_thread import DownloadingThread
-from .utils import FileInfo
+from src.model.downloading_thread import DownloadingThread
+from src.utils.utils import FileInfo
 import shutil
 
 class TestDownloadingThread:

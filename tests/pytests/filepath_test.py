@@ -1,5 +1,5 @@
 import pytest
-from .utils import FilePath
+from src.utils.utils import FilePath
 
 def test_FilePath():
     fp = FilePath("/root", "/tmp")

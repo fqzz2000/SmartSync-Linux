@@ -3,10 +3,10 @@ from collections import deque
 import sys
 import threading
 import time
-from data import DropboxInterface
-from unloading_thread import UploadingThread
-from downloading_thread import DownloadingThread
-from lib import FUSE
+from src.data.data import DropboxInterface
+from src.model.uploading_thread import UploadingThread
+from src.model.downloading_thread import DownloadingThread
+from src.lib import FUSE
 import os
 import shutil
 from functools import wraps

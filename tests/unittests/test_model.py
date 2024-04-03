@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock, mock_open
-from model import DropBoxModel, DropboxInterface
+from src.model.model import DropBoxModel, DropboxInterface
 import os
 import tempfile
 import dropbox
@@ -10,7 +10,7 @@ class TestDropBoxModel(unittest.TestCase):
     def setUp(self):
         self.mock_dbx_interface = MagicMock()
         self.rootdir = tempfile.mkdtemp()
-        self.model = DropBoxModel(self.mock_dbx_interface, self.rootdir)
+        self.model = DropBoxModel(self.mock_dbx_interface, self.rootdir, "")
        
 
     def test_read_success(self):

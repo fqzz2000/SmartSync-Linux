@@ -1,8 +1,8 @@
 # cmd of the dropbox daemon
-from data import DropboxInterface
-from fuselayer import FuseDropBox
-from lib import FUSE
-from model import DropBoxModel
+from src.data.data import DropboxInterface
+from src.fuselayer.fuselayer import FuseDropBox
+from src.lib.fuse import FUSE
+from src.model.model import DropBoxModel
 import atexit
 import os
 import sys
@@ -19,7 +19,7 @@ from multiprocessing import Process, Queue
 from flask import Flask, request, redirect, session
 import dropbox
 import logging
-import config
+import src.config.config as config
 
 WORKING_DIR = os.path.expanduser("~/Desktop")
 pid_file = os.path.join(config.TMP_DIR, "dropbox.pid")
