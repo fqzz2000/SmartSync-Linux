@@ -1,5 +1,5 @@
 # cmd of the dropbox daemon
-from data import DropboxInterface
+from data.data import DropboxInterface
 from fuselayer import FuseDropBox
 from lib import FUSE
 from model import DropBoxModel
@@ -109,6 +109,23 @@ def start_daemon():
     
     # start daemon
 
+    try:
+        oauth_result = auth_flow.finish(auth_code)
+    except Exception as e:
+        print('Error: %s' % (e,))
+        exit(1)
+    token = oauth_result.access_token
+    print("Start setting up your dropbox...")
+    db = DropboxInterface(token)
+    rootdir = os.path.join(WORKING_DIR, ".cache")
+    swapdir = os.path.join(WORKING_DIR, ".swap")
+    if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
+        os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
+    if os.path.exists(os.path.join(TMP_DIR, "std_out.log")):
+        os.unlink(os.path.join(TMP_DIR, "std_out.log")) 
+    if os.path.exists(os.path.join(TMP_DIR, "std_err.log")):
+        os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
+
     context = daemon.DaemonContext(
         pidfile=pidfile.TimeoutPIDLockFile(pid_file),
         stdout=open(os.path.join(config.TMP_DIR, 'std_out.log'), 'w+'),
@@ -120,6 +137,7 @@ def start_daemon():
 
 
         model = DropBoxModel(db, rootdir, swapdir)
+
 
         model.clearAll()
         model.downloadAll()
