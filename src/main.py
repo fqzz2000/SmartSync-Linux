@@ -75,6 +75,7 @@ def start_daemon():
     print("Start setting up your dropbox...")
     db = DropboxInterface(token)
     rootdir = os.path.join(WORKING_DIR, ".cache")
+    swapdir = os.path.join(WORKING_DIR, ".swap")
     if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
         os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
     if os.path.exists(os.path.join(TMP_DIR, "std_out.log")):
@@ -88,7 +89,7 @@ def start_daemon():
     )
 
     with context:
-        model = DropBoxModel(db, rootdir)
+        model = DropBoxModel(db, rootdir, swapdir)
         model.clearAll()
         model.downloadAll()
         atexit.register(model.clearAll)
