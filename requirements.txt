@@ -11,8 +11,6 @@ cryptography==2.8
 daemon==1.2
 dbus-python==1.2.16
 distro==1.4.0
-distro-info==0.23+ubuntu1.1
-Django==4.2.9
 dnspython==1.16.0
 docutils==0.20.1
 dropbox==11.36.2
