@@ -56,9 +56,11 @@ def run_login_server():
     login_app.run(debug=False, port=5000, use_reloader=False)
 
 def listen_for_events(url, model):
+    print(f"Listening for events at {url}")
     while True:
         try:
             response = requests.get(url, stream=True)
+            print(f"Response: {response.status_code}")
             for line in response.iter_lines():
                 if line and line[0] != b':'[0]:
                     # log the line with logging
@@ -93,7 +95,7 @@ def start_daemon():
     login_server_process.start()
     authorize_url = "http://localhost:5000/start"
     # print(f"{os.getpid()}: browser launching...")
-    webbrowser.open(authorize_url)
+    # webbrowser.open(authorize_url)
     global auth_token
     while True:
         if not queue.empty():

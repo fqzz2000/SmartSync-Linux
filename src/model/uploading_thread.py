@@ -1,3 +1,4 @@
+import sys
 import time
 from loguru import logger
 class UploadingThread():
@@ -67,7 +68,7 @@ class UploadingThread():
         search the queue, if the file is already in the queue, update the timestamp
         otherwise, add the file to the queue
         '''
-        logger.warning(f"Task Added {path} {file}")
+        # logger.warning(f"Task Added {path} {file}")
         if self.outstandingQueue.get((path, file), None) is not None:
             self.outstandingQueue[(path, file)] = time.time()
         else:

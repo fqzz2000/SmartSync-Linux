@@ -33,28 +33,31 @@ class DownloadingThread():
         self.rootDir = os.path.abspath(rootDir)
         self.filepath = FilePath(self.rootDir, self.tmpDir)
         self.mutex = threading.Lock()
+        self.cursor = None # state cursor for dropbox
 
     def __call__(self):
         '''
         sdownload loop
         '''
         while True:
+            
             self.mutex.acquire()
             if self.stop_:
                 self.mutex.release()
                 break
             self.mutex.release()
-
             self.eventQueue.get(block=True)
             logger.info("Downloading files from Dropbox")
-            print("downloading triggered")
+            print("update triggered")
             metadata = self.getFileMetadata()
-            dList = self.getDownLoadList(metadata)
-            for path in dList:
+            downList, delList = self.getUpdateList(metadata)
+            for path in downList:
                 localPath = self.filepath.getLocalPath(path)
                 os.makedirs(os.path.dirname(localPath), exist_ok=True)
                 self.downloadFile(path)
-            self.refreshRootDir(metadata)
+            self.refreshRootDir(metadata["download"])
+            self.cleanRootDir(delList)
+
             
 
     def stop(self):
@@ -65,7 +68,19 @@ class DownloadingThread():
         self.stop_ = True
         self.mutex.release()
 
-    
+    def cleanRootDir(self, deleteList : list):
+        '''
+        delete local files that are no longer in dropbox
+        '''
+        for path in deleteList:
+            localPath = self.filepath.getLocalPath(path)
+            if os.path.exists(localPath):
+                os.remove(localPath)
+                keypath = self.filepath.getRemotePath(path)
+                # del self.syncMap[keypath]
+        print(f"Deleted {len(deleteList)} files")
+        print(deleteList)
+
     def refreshRootDir(self, metadata):
         """
         Moves all files and directories from src to dest using an atomic operation.
@@ -76,7 +91,7 @@ class DownloadingThread():
         src = self.tmpDir
         dest = self.rootDir
         if not os.path.isdir(src):
-            raise ValueError(f"Source is not a directory: {src}")
+            logger.error(f"Source directory does not exist: {src}")
         if not os.path.isdir(dest):
             os.makedirs(dest)
 
@@ -134,13 +149,14 @@ class DownloadingThread():
             return -1
         return 0
 
-    def getDownLoadList(self, metadata:dict):
+    def getUpdateList(self, metadata:dict):
         '''
         get the list of files to download
         '''
         localTimes = self.retrieveLocalMTime()
-        dlist = self.retrieveDownloadList(metadata, localTimes)
-        return dlist
+        downlist, dellist = self.getUpdateListHelper(metadata, localTimes)
+        return downlist, dellist
+
 
     def retrieveLocalMTime(self):
         '''
@@ -153,30 +169,35 @@ class DownloadingThread():
                 keypath = os.path.relpath(path, self.rootDir)
                 ans[self.filepath.getRemotePath(keypath)] = os.path.getmtime(path)
         return ans
-    
-    def retrieveDownloadList(self, metadata:dict, localFiles:dict):
+
+    def getUpdateListHelper(self, metadata:dict, localFiles:dict):
         '''
         retrieve the list of files to download
         '''
-        dList = []
-        for k, v in metadata.items():
+        downList = []
+        delList = metadata["delete"]
+
+        for k, v in metadata["download"].items():
             if k not in localFiles:
                 # download the file
-                dList.append(k)
+                downList.append(k)
             else:
-                if v.timestamp > localFiles[k]:
+                if v.timestamp > datetime.date.fromtimestamp(localFiles[k]):
                     # download the file
-                    dList.append(k)
-
-        return dList
+                    downList.append(k)
+                elif v.timestamp <= datetime.date.fromtimestamp(localFiles[k]) and k in delList:
+                    # delete the file
+                    delList.remove(k)
+        return downList, delList
 
     def getFileMetadata(self)->dict:
         '''
         get the metadata of the file
         '''
         ans = {}
+        deleteList = []
         # get the list of files from dropbox
-        files = self.dbx.list_folder("", recursive=True)
+        files, self.cursor = self.dbx.getUpdates(self.cursor)
         for k,v in files.items():
             if isinstance(v, dropbox.files.FileMetadata):
                 if not self.verifyFileResponse(v):
@@ -185,7 +206,9 @@ class DownloadingThread():
                 ans[v.path_display] = FileInfo(v.path_display, v.server_modified, v.size, v.content_hash, v.rev)
             elif isinstance(v, dropbox.files.FolderMetadata):
                 pass
-        return ans
+            elif isinstance(v, dropbox.files.DeletedMetadata):
+                deleteList.append(v.path_display)
+        return {"download": ans, "delete" : deleteList}
 
     def verifyFileResponse(self, fileResponse:dropbox.files.FileMetadata) -> bool:
         '''
