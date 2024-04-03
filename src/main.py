@@ -78,6 +78,7 @@ def start_daemon():
     if not os.path.exists(os.path.join(WORKING_DIR, "dropbox")):
         os.mkdir(os.path.join(WORKING_DIR, "dropbox"))
     rootdir = os.path.join(WORKING_DIR, ".cache")
+    swapdir = os.path.join(WORKING_DIR, ".swap")
     if os.path.exists(os.path.join(config.TMP_DIR, "dropbox.log")):
         os.unlink(os.path.join(config.TMP_DIR, "dropbox.log")) 
     if os.path.exists(os.path.join(config.TMP_DIR, "std_out.log")):
@@ -106,6 +107,7 @@ def start_daemon():
     # print("Start setting up your dropbox...")
     
     # start daemon
+
     context = daemon.DaemonContext(
         pidfile=pidfile.TimeoutPIDLockFile(pid_file),
         stdout=open(os.path.join(config.TMP_DIR, 'std_out.log'), 'w+'),
@@ -115,8 +117,9 @@ def start_daemon():
         auth_token = os.getenv('MY_APP_AUTH_TOKEN')
         db = DropboxInterface(auth_token)
 
-        # initialize the model
-        model = DropBoxModel(db, rootdir)
+
+        model = DropBoxModel(db, rootdir, swapdir)
+
         model.clearAll()
         model.downloadAll()
         atexit.register(model.clearAll)

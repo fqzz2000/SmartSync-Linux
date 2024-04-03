@@ -3,8 +3,9 @@ from collections import deque
 import sys
 import threading
 import time
-from data.data import DropboxInterface
+from data import DropboxInterface
 from UploadingThread import UploadingThread
+from downloading_thread import DownloadingThread
 from lib import FUSE
 import os
 import shutil
@@ -24,17 +25,22 @@ def lockWrapper(func):
 class DropBoxModel():
 
 
-    def __init__(self, interface, rootdir) -> None:
+    def __init__(self, interface, rootdir, swapdir) -> None:
         self.dbx = interface
         self.rootdir = rootdir
+        self.swapdir = swapdir
         self.mutex = threading.Lock()
-        self.synchronizeThread = self.UploadingThread(self.dbx, self.mutex)
+        self.synchronizeThread = UploadingThread(self.dbx, self.mutex)
+        self.downloadingThread = DownloadingThread(self.dbx, self.swapdir, self.rootdir)
         self.thread = threading.Thread(target=self.synchronizeThread)
+        self.dthread = threading.Thread(target=self.downloadingThread)
         self.thread.start()
+        self.dthread.start()
         print("Model initialized")
 
     def stop(self):
         self.synchronizeThread.stop()
+        self.downloadingThread.stop()
         self.thread.join()
     
     @lockWrapper
@@ -90,22 +96,7 @@ class DropBoxModel():
         '''
         download all the files in the dropbox
         '''
-        try:
-            dic = self.listFolder("")
-            for k, v in dic.items():
-                if len(k) == 0 or k[0] != "/":
-                    k = "/" + k
-                value_type = str(type(v))
-                if value_type == "<class 'dropbox.files.FolderMetadata'>":
-                    self.dbx.download_folder(k, self.rootdir + k, self.rootdir)
-                elif value_type == "<class 'dropbox.files.FileMetadata'>":
-                    self.dbx.download(k, self.rootdir + "/" + k)
-                else:
-                    raise Exception("Unknown type" + value_type)
-            return 0
-        except Exception as e:
-            print(e)
-            return -1
+        self.downloadingThread.addTask()
 
     @lockWrapper
     def clearAll(self) -> int:
