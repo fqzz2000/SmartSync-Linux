@@ -1,5 +1,5 @@
 # cmd of the dropbox daemon
-from data.data import DropboxInterface
+from data import DropboxInterface
 from fuselayer import FuseDropBox
 from lib import FUSE
 from model import DropBoxModel
@@ -55,13 +55,14 @@ def callback():
 def run_login_server():
     login_app.run(debug=False, port=5000, use_reloader=False)
 
-def listen_for_events(url):
+def listen_for_events(url, model):
     while True:
         try:
             response = requests.get(url, stream=True)
             for line in response.iter_lines():
                 if line and line[0] != b':'[0]:
                     # log the line with logging
+                    model.triggerDownload()
                     logger.warning(f'Event: {line}')
 
         except Exception as e:
@@ -96,7 +97,7 @@ def start_daemon():
     while True:
         if not queue.empty():
             auth_token = queue.get()
-            break;
+            break
     print("Auth token fetched successfully!")
     print("Terminating login flask server...")
     login_server_process.terminate()
@@ -128,7 +129,7 @@ def start_daemon():
         global user_id
         user_id = db.dbx.users_get_current_account().account_id
         url = f"{config.SUBSCRIBE_URL}/{user_id}"
-        subscribe_thread = threading.Thread(target=listen_for_events, args=(url,))
+        subscribe_thread = threading.Thread(target=listen_for_events, args=(url, model))
         subscribe_thread.daemon = True
         subscribe_thread.start()
         

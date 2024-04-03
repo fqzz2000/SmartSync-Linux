@@ -42,6 +42,9 @@ class DropBoxModel():
         self.synchronizeThread.stop()
         self.downloadingThread.stop()
         self.thread.join()
+
+    def triggerDownload(self):
+        self.downloadingThread.addTask()
     
     @lockWrapper
     def read(self, path:str, file:str) -> int:
