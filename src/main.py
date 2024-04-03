@@ -15,18 +15,14 @@ import webbrowser
 import threading
 import requests
 from loguru import logger
-from login_server import login_app
 from multiprocessing import Process, Queue
 from flask import Flask, request, redirect, session
 import dropbox
 import logging
+import config
 
-APP_KEY = "p379vmpas0tf58c"
-SUBSCRIBE_URL = "https://vcm-39026.vm.duke.edu:5002/events"
 WORKING_DIR = os.path.expanduser("~/Desktop")
-TMP_DIR = "/tmp/dropbox"
-REDIRECT_URI = 'http://localhost:5000/oauth2/callback'
-pid_file = os.path.join(TMP_DIR, "dropbox.pid")
+pid_file = os.path.join(config.TMP_DIR, "dropbox.pid")
 auth_token = None
 user_id = None
 login_app = Flask(__name__)
@@ -34,7 +30,7 @@ login_app.secret_key = os.urandom(24)
 logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
 queue = Queue()
 
-auth_flow = dropbox.DropboxOAuth2Flow(APP_KEY, REDIRECT_URI, session, 'dropbox-auth-csrf-token', use_pkce=True, token_access_type='offline')
+auth_flow = dropbox.DropboxOAuth2Flow(config.APP_KEY, config.REDIRECT_URI, session, 'dropbox-auth-csrf-token', use_pkce=True, token_access_type='offline')
 
 @login_app.route('/start')
 def start():
@@ -73,8 +69,8 @@ def listen_for_events(url):
     
 def start_daemon():
     # create directories and clearing previous logs
-    if not os.path.exists(TMP_DIR):
-        os.mkdir(TMP_DIR)
+    if not os.path.exists(config.TMP_DIR):
+        os.mkdir(config.TMP_DIR)
     if not os.path.exists(WORKING_DIR):
         os.mkdir(WORKING_DIR)
     if not os.path.exists(os.path.join(WORKING_DIR, ".cache")):
@@ -82,12 +78,12 @@ def start_daemon():
     if not os.path.exists(os.path.join(WORKING_DIR, "dropbox")):
         os.mkdir(os.path.join(WORKING_DIR, "dropbox"))
     rootdir = os.path.join(WORKING_DIR, ".cache")
-    if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
-        os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
-    if os.path.exists(os.path.join(TMP_DIR, "std_out.log")):
-        os.unlink(os.path.join(TMP_DIR, "std_out.log")) 
-    if os.path.exists(os.path.join(TMP_DIR, "std_err.log")):
-        os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
+    if os.path.exists(os.path.join(config.TMP_DIR, "dropbox.log")):
+        os.unlink(os.path.join(config.TMP_DIR, "dropbox.log")) 
+    if os.path.exists(os.path.join(config.TMP_DIR, "std_out.log")):
+        os.unlink(os.path.join(config.TMP_DIR, "std_out.log")) 
+    if os.path.exists(os.path.join(config.TMP_DIR, "std_err.log")):
+        os.unlink(os.path.join(config.TMP_DIR, "std_err.log")) 
 
     # fetching auth token
     login_server_process = Process(target=run_login_server)
@@ -112,8 +108,8 @@ def start_daemon():
     # start daemon
     context = daemon.DaemonContext(
         pidfile=pidfile.TimeoutPIDLockFile(pid_file),
-        stdout=open(os.path.join(TMP_DIR, 'std_out.log'), 'w+'),
-        stderr=open(os.path.join(TMP_DIR, 'std_err.log'), 'w+'),
+        stdout=open(os.path.join(config.TMP_DIR, 'std_out.log'), 'w+'),
+        stderr=open(os.path.join(config.TMP_DIR, 'std_err.log'), 'w+'),
     )
     with context:
         auth_token = os.getenv('MY_APP_AUTH_TOKEN')
@@ -122,7 +118,7 @@ def start_daemon():
         # setting up thread listening for updates
         global user_id
         user_id = db.dbx.users_get_current_account().account_id
-        url = f"{SUBSCRIBE_URL}/{user_id}"
+        url = f"{config.SUBSCRIBE_URL}/{user_id}"
         subscribe_thread = threading.Thread(target=listen_for_events, args=(url,))
         subscribe_thread.daemon = True
         subscribe_thread.start()
