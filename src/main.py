@@ -1,5 +1,5 @@
 # cmd of the dropbox daemon
-from data.data import DropboxInterface
+from data import DropboxInterface
 from fuselayer import FuseDropBox
 from lib import FUSE
 from model import DropBoxModel
@@ -62,6 +62,7 @@ def listen_for_events(url, model):
             for line in response.iter_lines():
                 if line and line[0] != b':'[0]:
                     # log the line with logging
+                    print(f'Event: {line}')
                     model.triggerDownload()
                     logger.warning(f'Event: {line}')
 
@@ -92,7 +93,7 @@ def start_daemon():
     login_server_process.start()
     authorize_url = "http://localhost:5000/start"
     # print(f"{os.getpid()}: browser launching...")
-    webbrowser.open(authorize_url)
+    # webbrowser.open(authorize_url)
     global auth_token
     while True:
         if not queue.empty():
@@ -109,22 +110,6 @@ def start_daemon():
     
     # start daemon
 
-    try:
-        oauth_result = auth_flow.finish(auth_code)
-    except Exception as e:
-        print('Error: %s' % (e,))
-        exit(1)
-    token = oauth_result.access_token
-    print("Start setting up your dropbox...")
-    db = DropboxInterface(token)
-    rootdir = os.path.join(WORKING_DIR, ".cache")
-    swapdir = os.path.join(WORKING_DIR, ".swap")
-    if os.path.exists(os.path.join(TMP_DIR, "dropbox.log")):
-        os.unlink(os.path.join(TMP_DIR, "dropbox.log")) 
-    if os.path.exists(os.path.join(TMP_DIR, "std_out.log")):
-        os.unlink(os.path.join(TMP_DIR, "std_out.log")) 
-    if os.path.exists(os.path.join(TMP_DIR, "std_err.log")):
-        os.unlink(os.path.join(TMP_DIR, "std_err.log")) 
 
     context = daemon.DaemonContext(
         pidfile=pidfile.TimeoutPIDLockFile(pid_file),

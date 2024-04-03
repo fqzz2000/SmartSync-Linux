@@ -47,6 +47,7 @@ class DownloadingThread():
 
             self.eventQueue.get(block=True)
             logger.info("Downloading files from Dropbox")
+            print("downloading triggered")
             metadata = self.getFileMetadata()
             dList = self.getDownLoadList(metadata)
             for path in dList:
@@ -124,6 +125,7 @@ class DownloadingThread():
         download the file from dropbox
         '''
         logger.info(f"Downloading file {path}")
+        print(f"Downloading file {path}")
         try:
             os.makedirs(os.path.dirname(self.filepath.getTmpPath(path)), exist_ok=True)
             self.dbx.download(path, self.filepath.getTmpPath(path))
