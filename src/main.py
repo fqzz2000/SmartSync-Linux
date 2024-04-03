@@ -115,6 +115,12 @@ def start_daemon():
         auth_token = os.getenv('MY_APP_AUTH_TOKEN')
         db = DropboxInterface(auth_token)
 
+        # initialize the model
+        model = DropBoxModel(db, rootdir)
+        model.clearAll()
+        model.downloadAll()
+        atexit.register(model.clearAll)
+
         # setting up thread listening for updates
         global user_id
         user_id = db.dbx.users_get_current_account().account_id
@@ -122,11 +128,7 @@ def start_daemon():
         subscribe_thread = threading.Thread(target=listen_for_events, args=(url,))
         subscribe_thread.daemon = True
         subscribe_thread.start()
-
-        model = DropBoxModel(db, rootdir)
-        model.clearAll()
-        model.downloadAll()
-        atexit.register(model.clearAll)
+        
         try:
             fuse = FUSE(
                 FuseDropBox(rootdir, model),
