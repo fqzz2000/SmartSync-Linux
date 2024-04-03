@@ -4,7 +4,7 @@ import sys
 import threading
 import time
 from data import DropboxInterface
-from UploadingThread import UploadingThread
+from unloading_thread import UploadingThread
 from downloading_thread import DownloadingThread
 from lib import FUSE
 import os
