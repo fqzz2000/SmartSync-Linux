@@ -93,7 +93,7 @@ def start_daemon():
     login_server_process.start()
     authorize_url = "http://localhost:5000/start"
     # print(f"{os.getpid()}: browser launching...")
-    # webbrowser.open(authorize_url)
+    webbrowser.open(authorize_url)
     global auth_token
     while True:
         if not queue.empty():
