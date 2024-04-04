@@ -18,7 +18,7 @@ class UploadingThread():
         '''
         while not self._stop:
             time.sleep(self.synInterval)
-            logger.warning("Synchronization Tiggered")
+            # logger.warning("Synchronization Tiggered")
             self.synchronize()
 
     def synchronize(self):
@@ -29,7 +29,7 @@ class UploadingThread():
         '''
         maxSync = time.time() - self.lastMaxSyncTime > self.maxSynInterval
         if maxSync:
-            logger.warning("Max synchronization interval reached, uploading all files")
+            # logger.warning("Max synchronization interval reached, uploading all files")
             self.lastMaxSyncTime = time.time()
         if len(self.outstandingQueue) > 0:
         
@@ -47,7 +47,7 @@ class UploadingThread():
             self.outstandingQueue = newQueue
             self.mutex.release()
 
-        logger.warning(f"Uploading {len(self.uploadingQueue)} files")
+        # logger.warning(f"Uploading {len(self.uploadingQueue)} files")
         while len(self.uploadingQueue) > 0:
             path, file = self.uploadingQueue.pop()
             logger.warning(f"Uploading {path} {file}")
@@ -57,7 +57,7 @@ class UploadingThread():
                 # print to stderr
                 print(e, file=sys.stderr)
                 return 
-            logger.warning(f"Upload {path} {file} done")
+            # logger.warning(f"Upload {path} {file} done")
 
 
     def stop(self):

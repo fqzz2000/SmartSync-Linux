@@ -190,17 +190,18 @@ class DropBoxModel():
             return None
 
     @lockWrapper
-    def saveMetadataToFile(self,filename:str="../metadata.json") -> int:
+    def saveMetadataToFile(self) -> int:
         """
         List all files and folders in the Dropbox and save their metadata to a file in JSON format.
         """
         data_to_save = []
         print("enter into function")
+        metadata_file_path = os.path.join(self.rootdir, 'metadata.json')
         try:
-            files = self.dbx.list_folder("", recursive=True)
-            for k,v in files.items():
+            files,_ = self.dbx.list_folder("", recursive=True)
+            
+            for k, v in files.items():
                 if isinstance(v,dropbox.files.FileMetadata):
-
                     data_to_save.append({
                         "name": v.name,
                         "path_lower": v.path_lower,
@@ -214,17 +215,33 @@ class DropBoxModel():
                         "type": "folder"
                     })
             
-            with open(filename, "w") as f:
+            with open(metadata_file_path, "w") as f:
                 json.dump(data_to_save, f, indent=4)
 
             print(data_to_save)
+            self.initialize_placeholders()
 
             return 0 
         
         except Exception as e:
             print(e)
             return -1
+            
+
+    def initialize_placeholders(self):
+        print("initialize_placeholders")
+        try:
+            with open(os.path.join(self.rootdir, 'metadata.json'), 'r') as f:
+                metadata = json.load(f)
+        except FileNotFoundError:
+            print("Metadata file not found, attempting to download...")
         
+        for item in metadata:
+            if item["type"] == "folder":
+                dir_path = os.path.join(self.rootdir, item["path_lower"].lstrip('/'))
+                print("dir_path ", dir_path)
+                os.makedirs(dir_path, exist_ok=True)
+              
 
 WORKING_DIR = "/home/yl910/SmartSync-Linux/"
 if __name__ == "__main__":
@@ -243,7 +260,7 @@ if __name__ == "__main__":
     model.saveMetadataToFile()
     # logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
     fuse = FUSE(
-        FuseDropBox(rootdir, model),
+        FuseDropBox(rootdir, model, db),
         os.path.join(WORKING_DIR, "dropbox"),
         foreground=True,
         allow_other=True,
