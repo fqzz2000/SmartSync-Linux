@@ -28,6 +28,7 @@ class DropboxInterface:
         rv = {}
         for entry in res.entries:
             rv[entry.name] = entry
+
         return rv, res.cursor
     
     def getUpdates(self, cursor):
@@ -135,6 +136,7 @@ if __name__ == "__main__":
     for k, v in dic.items():
         print(k, v)
         print()
+        
     input("Press Enter to continue...")
     update = db.getUpdates()
     for k, v in update.items():
