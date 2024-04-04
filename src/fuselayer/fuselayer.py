@@ -52,6 +52,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         # print("create path: ", path)
         self.metadata.append(new_file_metadata)
         self.update_metadata_file()
+        print(f"create, current metatdata {self.metadata}")
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
@@ -61,6 +62,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     def update_metadata_file(self):
         with open(self.metadata_file_path, 'w') as f:
             json.dump(self.metadata, f, indent=4)
+        print(f"update metadata file, current metatdata {self.metadata}")
             
     def getattr(self, path, fh=None):
         logger.info(f"GETATTR CALLED WITH ID {random.randint(0, 100)}")
@@ -185,7 +187,8 @@ class FuseDropBox(LoggingMixIn, Operations):
         for item in self.metadata:
             if item["type"] == "file":
                 if os.path.dirname(item["path_lower"].lstrip('/')) == path.lstrip('/'):
-                    direntries.append(item["name"])
+                    if item["name"] not in direntries:
+                        direntries.append(item["name"])
         return direntries
 
 
@@ -283,6 +286,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         ret = os.pwrite(fh, data, offset)
         new_size = offset + ret
         self.update_metadata(path, new_size)
+        print(f"write, current metatdata {self.metadata}")
         self.db.write(path)
         # logger.warning(f"WRITE DONE ADD UPLOAD TASK")
         return ret
