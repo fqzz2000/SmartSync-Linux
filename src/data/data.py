@@ -23,10 +23,22 @@ class DropboxInterface:
         
     def list_folder(self, path, recursive=False):
         res = self.dbx.files_list_folder(path, recursive=recursive)
+        if (res.has_more):
+            logger.error("ListFolder Error: There are more files to list")
         rv = {}
         for entry in res.entries:
             rv[entry.name] = entry
-        return rv
+        return rv, res.cursor
+    
+    def getUpdates(self, cursor):
+        if cursor is None:
+            return self.list_folder("", recursive=True)
+        
+        res = self.dbx.files_list_folder_continue(cursor)
+        rv = {}
+        for entry in res.entries:
+            rv[entry.name] = entry
+        return rv, res.cursor
     
     def upload(self, file, path, overwrite=False):
         """Upload a file.
@@ -119,8 +131,14 @@ if __name__ == "__main__":
         sys.exit(1)
     rootPath = "/home/tq22/ece566/SmartSync-Linux/cache"
     db = DropboxInterface(sys.argv[1])
-    dic = db.list_folder("")
+    dic = db.list_folder("", recursive=True)
     for k, v in dic.items():
         print(k, v)
+        print()
+    input("Press Enter to continue...")
+    update = db.getUpdates()
+    for k, v in update.items():
+        print(k, v)
+        print()
 
     
