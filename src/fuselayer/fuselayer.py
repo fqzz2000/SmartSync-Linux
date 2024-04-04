@@ -62,7 +62,6 @@ class FuseDropBox(LoggingMixIn, Operations):
     def update_metadata_file(self):
         with open(self.metadata_file_path, 'w') as f:
             json.dump(self.metadata, f, indent=4)
-        print(f"update metadata file, current metatdata {self.metadata}")
             
     def getattr(self, path, fh=None):
         logger.info(f"GETATTR CALLED WITH ID {random.randint(0, 100)}")
@@ -172,6 +171,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         
         with open(self.metadata_file_path, 'r') as f:
             self.metadata = json.load(f)
+
         if path[0] == "/":
             path = path[1:]
         newpath = os.path.join(self.rootdir, path)
@@ -185,10 +185,11 @@ class FuseDropBox(LoggingMixIn, Operations):
         # return ['.', '..'] + list(rv.keys())
         
         for item in self.metadata:
-            if item["type"] == "file":
-                if os.path.dirname(item["path_lower"].lstrip('/')) == path.lstrip('/'):
+            if os.path.dirname(item["path_lower"].lstrip('/')) == path.lstrip('/'):
                     if item["name"] not in direntries:
                         direntries.append(item["name"])
+        
+        print(direntries)
         return direntries
 
 
@@ -282,11 +283,10 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def write(self, path, data, offset, fh):
         id = random.randint(0, 100)
-        logger.info(f"WRITE CALLED WITH ID {id}")
+        # logger.info(f"WRITE CALLED WITH ID {id}")
         ret = os.pwrite(fh, data, offset)
         new_size = offset + ret
         self.update_metadata(path, new_size)
-        print(f"write, current metatdata {self.metadata}")
         self.db.write(path)
         # logger.warning(f"WRITE DONE ADD UPLOAD TASK")
         return ret
@@ -296,7 +296,7 @@ class FuseDropBox(LoggingMixIn, Operations):
             if item["path_lower"] == path:
                 item["size"] = new_size
                 break
-        self.update_metadata_file()
+        # self.update_metadata_file()
 
     def release(self, path, fh):
         logger.info(f"RELEASE CALLED WITH ID {random.randint(0, 100)}")
