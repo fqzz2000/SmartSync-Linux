@@ -188,11 +188,9 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return None
-        
-        
 
     @lockWrapper
-    def saveMetadataToFile(self,filename:str="metadata.txt") -> int:
+    def saveMetadataToFile(self,filename:str="../metadata.json") -> int:
         """
         List all files and folders in the Dropbox and save their metadata to a file in JSON format.
         """

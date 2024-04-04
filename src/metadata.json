@@ -25,6 +25,11 @@
         "type": "folder"
     },
     {
+        "name": "summer",
+        "path_lower": "/summer",
+        "type": "folder"
+    },
+    {
         "name": "test.txt",
         "path_lower": "/test/test.txt",
         "size": 8,
@@ -32,8 +37,8 @@
     },
     {
         "name": "ting.txt",
-        "path_lower": "/.trash-1000/files/ting.txt",
-        "size": 5,
+        "path_lower": "/summer/ting.txt",
+        "size": 9,
         "type": "file"
     }
 ]

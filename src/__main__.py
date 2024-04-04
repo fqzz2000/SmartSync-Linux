@@ -123,9 +123,12 @@ def start_daemon():
 
         model = DropBoxModel(db, rootdir, swapdir)
 
-
         model.clearAll()
-        model.downloadAll()
+        # model.downloadAll()
+        model.saveMetadataToFile()
+
+        #obtain all the metadata and display in the dropbox folder
+        #as placeholder
         atexit.register(model.clearAll)
 
         # setting up thread listening for updates

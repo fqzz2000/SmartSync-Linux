@@ -9,6 +9,8 @@ import errno
 from collections import defaultdict
 import os
 from loguru import logger
+import json
+import time
 
 
 class FuseDropBox(LoggingMixIn, Operations):
@@ -20,6 +22,9 @@ class FuseDropBox(LoggingMixIn, Operations):
         self.db = dbmodel
         logger.remove()
         logger.add("/tmp/dropbox/dropbox.log", level="WARNING")
+        with open('../metadata.json', 'r') as f:
+            metadata = json.load(f)
+        self.metadata = metadata
 
     def chmod(self, path, mode):
         logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}")
@@ -45,6 +50,8 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def getattr(self, path, fh=None):
         logger.info(f"GETATTR CALLED WITH ID {random.randint(0, 100)}")
+        '''
+        Executes the lstat call directly on the local filesystem
         if path[0] == "/":
             path = path[1:]
 
@@ -62,8 +69,33 @@ class FuseDropBox(LoggingMixIn, Operations):
                 "st_size": ret.st_size,
                 "st_uid": ret.st_uid,
             }
-        except FileNotFoundError:
-            raise FuseOSError(errno.ENOENT)
+        '''
+    
+        now = time.time()
+        default_attrs = {
+            'st_atime': now,  
+            'st_ctime': now,  
+            'st_mtime': now,  
+            'st_gid': os.getgid(),  
+            'st_uid': os.getuid(),  
+            'st_nlink': 2 if path == "/" else 1,  
+        }
+   
+        if path == "/":
+            attrs = {'st_mode': (S_IFDIR | 0o755), **default_attrs} 
+            return attrs
+
+        for item in self.metadata:
+            if item["path_lower"] == path:
+                if item["type"] == "folder":
+                    attrs = {'st_mode': (S_IFDIR | 0o755), **default_attrs}
+                else:  # type == "file"
+                    attrs = {'st_mode': (S_IFREG | 0o644), 'st_size': item["size"], **default_attrs}  # 文件权限644
+                return attrs
+
+        # If the path does not exist in the metadata
+        raise FuseOSError(errno.ENOENT)
+        
 
     def getxattr(self, path, name, position=0):
         logger.info(f"GETXATTR CALLED WITH ID {random.randint(0, 100)}")
@@ -113,14 +145,20 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def readdir(self, path, fh):
         logger.info(f"READDIR CALLED WITH ID {random.randint(0, 100)}")
+        direntries = ['.', '..']
         if path[0] == "/":
             path = path[1:]
         newpath = os.path.join(self.rootdir, path)
-        return [".", ".."] + os.listdir(newpath)
+        # return [".", ".."] + os.listdir(newpath)
         # if path == "/":
         #     path = ""
         # rv = self.db.listFolder(path)
         # return ['.', '..'] + list(rv.keys())
+        
+        for item in self.metadata:   
+            if os.path.dirname(item["path_lower"].lstrip('/')) == path.lstrip('/'):
+                direntries.append(item["name"])
+        return direntries
 
     def readlink(self, path):
         logger.info(f"READLINK CALLED WITH ID {random.randint(0, 100)}")
