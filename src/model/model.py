@@ -195,8 +195,7 @@ class DropBoxModel():
         List all files and folders in the Dropbox and save their metadata to a file in JSON format.
         """
         data_to_save = []
-        print("enter into function")
-        metadata_file_path = os.path.join(self.rootdir, 'metadata.json')
+        metadata_file_path = '/tmp/dropbox/metadata.json'
         try:
             files,_ = self.dbx.list_folder("", recursive=True)
             
@@ -219,7 +218,7 @@ class DropBoxModel():
                 json.dump(data_to_save, f, indent=4)
 
             print(data_to_save)
-            self.initialize_placeholders()
+            self.initialize_placeholders(metadata_file_path)
 
             return 0 
         
@@ -228,10 +227,9 @@ class DropBoxModel():
             return -1
             
 
-    def initialize_placeholders(self):
-        print("initialize_placeholders")
+    def initialize_placeholders(self, path):
         try:
-            with open(os.path.join(self.rootdir, 'metadata.json'), 'r') as f:
+            with open(path, 'r') as f:
                 metadata = json.load(f)
         except FileNotFoundError:
             print("Metadata file not found, attempting to download...")
@@ -239,7 +237,7 @@ class DropBoxModel():
         for item in metadata:
             if item["type"] == "folder":
                 dir_path = os.path.join(self.rootdir, item["path_lower"].lstrip('/'))
-                print("dir_path ", dir_path)
+                # print("dir_path ", dir_path)
                 os.makedirs(dir_path, exist_ok=True)
               
 
