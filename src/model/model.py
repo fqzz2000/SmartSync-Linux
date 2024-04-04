@@ -6,11 +6,14 @@ import time
 from src.data.data import DropboxInterface
 from src.model.uploading_thread import UploadingThread
 from src.model.downloading_thread import DownloadingThread
+from src.fuselayer.fuselayer import FuseDropBox
 from src.lib import FUSE
 import os
 import shutil
+import dropbox
 from functools import wraps
 from loguru import logger
+import json
 
 def lockWrapper(func):
     @wraps(func)
@@ -23,7 +26,6 @@ def lockWrapper(func):
 
 
 class DropBoxModel():
-
 
     def __init__(self, interface, rootdir, swapdir) -> None:
         self.dbx = interface
@@ -186,7 +188,78 @@ class DropBoxModel():
         except Exception as e:
             print(e)
             return None
-        
 
+    @lockWrapper
+    def saveMetadataToFile(self) -> int:
+        """
+        List all files and folders in the Dropbox and save their metadata to a file in JSON format.
+        """
+        data_to_save = []
+        metadata_file_path = '/tmp/dropbox/metadata.json'
+        try:
+            files,_ = self.dbx.list_folder("", recursive=True)
+            
+            for k, v in files.items():
+                if isinstance(v,dropbox.files.FileMetadata):
+                    data_to_save.append({
+                        "name": v.name,
+                        "path_lower": v.path_lower,
+                        "size": v.size,
+                        "type": "file"
+                    })
+                elif isinstance(v, dropbox.files.FolderMetadata):
+                    data_to_save.append({
+                        "name": v.name,
+                        "path_lower": v.path_lower,
+                        "type": "folder"
+                    })
+            
+            with open(metadata_file_path, "w") as f:
+                json.dump(data_to_save, f, indent=4)
+
+            print(data_to_save)
+            self.initialize_placeholders(metadata_file_path)
+
+            return 0 
+        
+        except Exception as e:
+            print(e)
+            return -1
+            
+
+    def initialize_placeholders(self, path):
+        try:
+            with open(path, 'r') as f:
+                metadata = json.load(f)
+        except FileNotFoundError:
+            print("Metadata file not found, attempting to download...")
+        
+        for item in metadata:
+            if item["type"] == "folder":
+                dir_path = os.path.join(self.rootdir, item["path_lower"].lstrip('/'))
+                # print("dir_path ", dir_path)
+                os.makedirs(dir_path, exist_ok=True)
+              
+
+WORKING_DIR = "/home/yl910/SmartSync-Linux/"
 if __name__ == "__main__":
     print("Hello World")
+    if len(sys.argv) != 2:
+        print("Usage: {} <token>".format(sys.argv[0]))
+        sys.exit(1)
+
+    TOKEN = sys.argv[1]
+    db = DropboxInterface(TOKEN)
+    rootdir = os.path.join(WORKING_DIR, "cache")
+    swapdir = os.path.join(WORKING_DIR, "swap")
+    model = DropBoxModel(db, rootdir, swapdir)
+    model.clearAll()
+    # model.downloadAll()
+    model.saveMetadataToFile()
+    # logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
+    fuse = FUSE(
+        FuseDropBox(rootdir, model, db),
+        os.path.join(WORKING_DIR, "dropbox"),
+        foreground=True,
+        allow_other=True,
+    )
