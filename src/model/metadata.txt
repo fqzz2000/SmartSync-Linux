@@ -1,0 +1,39 @@
+[
+    {
+        "name": "test",
+        "path_lower": "/test",
+        "type": "folder"
+    },
+    {
+        "name": "hello",
+        "path_lower": "/hello",
+        "type": "folder"
+    },
+    {
+        "name": ".Trash-1000",
+        "path_lower": "/.trash-1000",
+        "type": "folder"
+    },
+    {
+        "name": "info",
+        "path_lower": "/.trash-1000/info",
+        "type": "folder"
+    },
+    {
+        "name": "files",
+        "path_lower": "/.trash-1000/files",
+        "type": "folder"
+    },
+    {
+        "name": "test.txt",
+        "path_lower": "/test/test.txt",
+        "size": 8,
+        "type": "file"
+    },
+    {
+        "name": "ting.txt",
+        "path_lower": "/.trash-1000/files/ting.txt",
+        "size": 5,
+        "type": "file"
+    }
+]
