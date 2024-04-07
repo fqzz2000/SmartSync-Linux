@@ -135,7 +135,8 @@ def start_daemon():
 
         # setting up thread listening for updates
         global user_id
-        user_id = db.dbx.users_get_current_account().account_id
+        user_id = db.dbx.users_get_current_account().account_id.split(":")[1]
+        print("user_id: ", user_id)
         url = f"{config.SUBSCRIBE_URL}/{user_id}"
         subscribe_thread = threading.Thread(target=listen_for_events, args=(url, model))
         subscribe_thread.daemon = True

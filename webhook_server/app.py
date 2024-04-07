@@ -21,6 +21,7 @@ def webhook():
     #     abort(403)
     
     for userid in json.loads(request.data)['list_folder']['accounts']:
+        userid = userid.split(':')[1]
         if userid not in user_queues:
             user_queues[userid] = Queue()
         user_queues[userid].put('File change detected')
