@@ -164,6 +164,9 @@ class DropBoxModel():
             print(e)
             return -1
         
+    def open_file(self, path, local_path):
+        self.dbx.download(path, local_path)
+        
     @lockWrapper
     def move(self, old:str, new:str) -> int:
         '''
@@ -194,32 +197,30 @@ class DropBoxModel():
         """
         List all files and folders in the Dropbox and save their metadata to a file in JSON format.
         """
-        data_to_save = []
+        data_to_save = {}
         metadata_file_path = '/tmp/dropbox/metadata.json'
         try:
             files,_ = self.dbx.list_folder("", recursive=True)
             
             for k, v in files.items():
                 if isinstance(v,dropbox.files.FileMetadata):
-                    data_to_save.append({
-                        "name": v.name,
-                        "path_lower": v.path_lower,
-                        "size": v.size,
-                        "type": "file"
-                    })
+                    data_to_save[v.path_display] = (
+                    v.name,  
+                    v.size,  
+                    "file"   
+                )
                 elif isinstance(v, dropbox.files.FolderMetadata):
-                    data_to_save.append({
-                        "name": v.name,
-                        "path_lower": v.path_lower,
-                        "type": "folder"
-                    })
+                    data_to_save[v.path_display] = (
+                        v.name,
+                        None, 
+                        "folder" 
+                )
             
             with open(metadata_file_path, "w") as f:
                 json.dump(data_to_save, f, indent=4)
 
             print(data_to_save)
-            self.initialize_placeholders(metadata_file_path)
-
+            
             return 0 
         
         except Exception as e:
@@ -236,10 +237,11 @@ class DropBoxModel():
         
         for item in metadata:
             if item["type"] == "folder":
-                dir_path = os.path.join(self.rootdir, item["path_lower"].lstrip('/'))
+                dir_path = os.path.join(self.rootdir, item["path_display"].lstrip('/'))
                 # print("dir_path ", dir_path)
                 os.makedirs(dir_path, exist_ok=True)
               
+
 
 WORKING_DIR = "/home/yl910/SmartSync-Linux/"
 if __name__ == "__main__":
@@ -254,11 +256,10 @@ if __name__ == "__main__":
     swapdir = os.path.join(WORKING_DIR, "swap")
     model = DropBoxModel(db, rootdir, swapdir)
     model.clearAll()
-    # model.downloadAll()
     model.saveMetadataToFile()
     # logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
     fuse = FUSE(
-        FuseDropBox(rootdir, model, db),
+        FuseDropBox(rootdir, model),
         os.path.join(WORKING_DIR, "dropbox"),
         foreground=True,
         allow_other=True,
