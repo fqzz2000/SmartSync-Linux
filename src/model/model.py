@@ -204,17 +204,17 @@ class DropBoxModel():
             
             for k, v in files.items():
                 if isinstance(v,dropbox.files.FileMetadata):
-                    data_to_save[v.path_display] = (
-                    v.name,  
-                    v.size,  
-                    "file"   
-                )
+                    data_to_save[v.path_display] = {
+                    "name": v.name,
+                    "size": v.size,
+                    "type": "file"
+                    }
                 elif isinstance(v, dropbox.files.FolderMetadata):
-                    data_to_save[v.path_display] = (
-                        v.name,
-                        None, 
-                        "folder" 
-                )
+                    data_to_save[v.path_display] = {
+                    "name": v.name,
+                    "size": None, 
+                    "type": "folder"
+                    }
             
             with open(metadata_file_path, "w") as f:
                 json.dump(data_to_save, f, indent=4)

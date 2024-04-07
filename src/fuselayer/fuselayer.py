@@ -44,7 +44,10 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"CREATE CALLED WITH ID {random.randint(0, 100)}")
         
         file_name = os.path.basename(path)
-        new_file_metadata = [file_name, 0, "file"]
+        new_file_metadata = {
+            "name": file_name, 
+            "size": 0,
+            "type": "folder"}
         self.metadata[path] = new_file_metadata
         # print(f"create, current metatdata {self.metadata}")
         if path[0] == "/":
@@ -92,12 +95,12 @@ class FuseDropBox(LoggingMixIn, Operations):
             m_data = self.metadata[path]
             attrs = {
                 **default_attrs,
-                'st_mode': (S_IFDIR | 0o755) if m_data[2] == "folder" else (S_IFREG | 0o644),
-                'st_nlink': 2 if m_data[2] == "folder" else 1,
-                'st_size': m_data[1] if m_data[1] is not None else 0,
+                'st_mode': (S_IFDIR | 0o755) if m_data["type"] == "folder" else (S_IFREG | 0o644),
+                'st_nlink': 2 if m_data["type"] == "folder" else 1,
+                'st_size': m_data["size"] if m_data["size"] is not None else 0,
                 
             }
-            st_size = m_data[1] if m_data[1] is not None else 0
+            st_size = m_data["size"] if m_data["size"] is not None else 0
             attrs['st_blocks'] = (st_size + 511) // 512
             return attrs
         
@@ -138,6 +141,14 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def mkdir(self, path, mode):
         logger.info(f"MKDIR CALLED WITH ID {random.randint(0, 100)}")
+        
+        dir_name = os.path.basename(path)
+        new_file_metadata = {
+            "name": dir_name, 
+            "size": 0,
+            "type": "folder"}
+        self.metadata[path] = new_file_metadata
+        print(self.metadata)
         if path[0] == "/":
             path = path[1:]
         self.db.createFolder(path, mode)
@@ -150,7 +161,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         if path in self.metadata:
             if not os.path.exists(local_path):
                 item = self.metadata[path]
-                if item[2] == "file":
+                if item["type"] == "file":
                     self.db.open_file(path, local_path)
 
         elif os.path.exists(local_path): 
@@ -184,7 +195,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         for m_path in self.metadata.keys():
             if os.path.dirname(m_path.lstrip('/')) == path.lstrip('/'):
                     # print("path: ", path)
-                    m_name = self.metadata[m_path][0]
+                    m_name = self.metadata[m_path]["name"]
                     if m_name not in direntries:
                         direntries.append(m_name)
         
@@ -220,11 +231,11 @@ class FuseDropBox(LoggingMixIn, Operations):
 
         self.db.move(old.lstrip('/'), new.lstrip('/'))
         local_path = os.path.join(self.rootdir, new.lstrip('/'))
-        print("loca: ", local_path)
+        # print("loca: ", local_path)
         if old in self.metadata:
-            m_type = self.metadata[old][2]
+            m_type = self.metadata[old]["type"]
             self.metadata[new] = self.metadata.pop(old)
-            self.metadata[new][0] = os.path.basename(local_path)
+            self.metadata[new]["name"] = os.path.basename(local_path)
             if m_type == "folder":
                 old_prefix = old + '/'
                 new_prefix = new + '/'
@@ -304,7 +315,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         # logger.info(f"WRITE CALLED WITH ID {id}")
         ret = os.pwrite(fh, data, offset)
         new_size = offset + ret
-        self.metadata[path][1] = new_size
+        self.metadata[path]["size"] = new_size
         self.db.write(path)
         # logger.warning(f"WRITE DONE ADD UPLOAD TASK")
         return ret
