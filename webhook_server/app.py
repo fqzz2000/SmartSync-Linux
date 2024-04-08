@@ -3,7 +3,12 @@ import os
 from queue import Queue
 import json
 import time
+from datetime import datetime
+import logging
 
+logging.basicConfig(filename='webhook_server.log', level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
@@ -33,9 +38,11 @@ def stream_events(userid):
     while True:
         if userid in user_queues and not user_queues[userid].empty():
             message = user_queues[userid].get()
+            time_format = "%Y-%m-%d %H:%M:%S"
+            app.logger.debug(f"[{datetime.now().strftime(time_format)}]: notifying user {userid}")
             yield f"data: {message}\n\n"
         yield ":heartbeat\n\n"
-        time.sleep(20)
+        time.sleep(1)
 
 @app.route('/events/<userid>')
 def events(userid):
