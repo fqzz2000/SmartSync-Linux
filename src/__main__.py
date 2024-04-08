@@ -135,7 +135,14 @@ def start_daemon():
 
         # setting up thread listening for updates
         global user_id
-        user_id = db.dbx.users_get_current_account().account_id.split(":")[1]
+        tmp = db.dbx.users_get_current_account().account_id.split(":")[1]
+        if len(tmp) > 0:
+            user_id = tmp
+        else:
+            user_id = db.dbx.users_get_current_account().account_id
+        if len(user_id) == 0:
+            print("Error: user_id is empty")
+            sys.exit(1)
         print("user_id: ", user_id)
         url = f"{config.SUBSCRIBE_URL}/{user_id}"
         subscribe_thread = threading.Thread(target=listen_for_events, args=(url, model))

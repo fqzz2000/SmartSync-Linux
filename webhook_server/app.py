@@ -22,7 +22,7 @@ def webhook():
     
     for userid in json.loads(request.data)['list_folder']['accounts']:
         userid = userid.split(':')[1]
-        if userid not in user_queues:
+        if len(userid) > 0 and userid not in user_queues:
             user_queues[userid] = Queue()
         user_queues[userid].put('File change detected')
     return '', 200
