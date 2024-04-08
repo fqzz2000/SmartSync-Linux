@@ -143,7 +143,7 @@ def start_daemon():
         
         try:
             fuse = FUSE(
-                FuseDropBox(rootdir, model, db),
+                FuseDropBox(rootdir, model),
                 os.path.join(WORKING_DIR, "dropbox"),
                 foreground=True,
                 allow_other=True,
