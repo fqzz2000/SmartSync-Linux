@@ -122,7 +122,6 @@ def start_daemon():
         auth_token = os.getenv('MY_APP_AUTH_TOKEN')
         db = DropboxInterface(auth_token)
 
-
         model = DropBoxModel(db, rootdir, swapdir)
 
         model.clearAll()
@@ -135,11 +134,11 @@ def start_daemon():
 
         # setting up thread listening for updates
         global user_id
-        tmp = db.dbx.users_get_current_account().account_id.split(":")[1]
-        if len(tmp) > 0:
-            user_id = tmp
+        tmp_userid = db.dbx.users_get_current_account().account_id
+        if ':' in tmp_userid:
+            user_id = tmp_userid.split(":")[1]
         else:
-            user_id = db.dbx.users_get_current_account().account_id
+            user_id = tmp_userid
         if len(user_id) == 0:
             print("Error: user_id is empty")
             sys.exit(1)

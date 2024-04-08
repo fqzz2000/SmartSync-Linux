@@ -21,6 +21,8 @@ def webhook():
     #     abort(403)
     
     for userid in json.loads(request.data)['list_folder']['accounts']:
+        if ':' not in userid:
+            continue
         userid = userid.split(':')[1]
         if len(userid) > 0 and userid not in user_queues:
             user_queues[userid] = Queue()
