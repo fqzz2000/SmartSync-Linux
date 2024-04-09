@@ -69,7 +69,7 @@ def events(userid):
     db = dropbox.Dropbox(token)
     try:
         actual_userid = db.users_get_current_account().account_id
-        if ':' in userid:
+        if ':' in actual_userid:
             actual_userid = actual_userid.split(':')[1]
         if actual_userid != userid:
             return 'Unauthorized', 401
