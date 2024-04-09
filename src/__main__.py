@@ -55,11 +55,11 @@ def callback():
 def run_login_server():
     login_app.run(debug=False, port=5000, use_reloader=False)
 
-def listen_for_events(url, model):
+def listen_for_events(url, data, model):
     print(f"Listening for events at {url}")
     while True:
         try:
-            response = requests.get(url, stream=True)
+            response = requests.post(url, json=data, stream=True)
             print(f"Response: {response.status_code}")
             for line in response.iter_lines():
                 if line and line[0] != b':'[0]:
@@ -120,10 +120,11 @@ def start_daemon():
     )
     with context:
         auth_token = os.getenv('MY_APP_AUTH_TOKEN')
+        data = {
+            'token': auth_token
+        }
         db = DropboxInterface(auth_token)
-
         model = DropBoxModel(db, rootdir, swapdir)
-
         model.clearAll()
         # model.downloadAll()
         model.saveMetadataToFile()
@@ -144,7 +145,7 @@ def start_daemon():
             sys.exit(1)
         print("user_id: ", user_id)
         url = f"{config.SUBSCRIBE_URL}/{user_id}"
-        subscribe_thread = threading.Thread(target=listen_for_events, args=(url, model))
+        subscribe_thread = threading.Thread(target=listen_for_events, args=(url, data, model))
         subscribe_thread.daemon = True
         subscribe_thread.start()
         

@@ -5,6 +5,7 @@ import json
 import time
 from datetime import datetime
 import logging
+import dropbox
 
 logging.basicConfig(filename='webhook_server.log', level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s: %(message)s',
@@ -44,8 +45,14 @@ def stream_events(userid):
         yield ":heartbeat\n\n"
         time.sleep(1)
 
-@app.route('/events/<userid>')
+@app.route('/events/<userid>', methods=['POST'])
 def events(userid):
+    token = request.get_json().get('token', None)
+    db = dropbox.Dropbox(token)
+    try:
+        db.users_get_current_account()
+    except:
+        return 'Invalid token', 401
     return Response(stream_with_context(stream_events(userid)), content_type='text/event-stream')
 
 if __name__ == '__main__':
