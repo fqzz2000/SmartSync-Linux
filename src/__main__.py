@@ -20,6 +20,7 @@ from flask import Flask, request, redirect, session
 import dropbox
 import logging
 import src.config.config as config
+import signal
 
 WORKING_DIR = os.path.expanduser("~/Desktop")
 pid_file = os.path.join(config.TMP_DIR, "dropbox.pid")
@@ -57,10 +58,22 @@ def run_login_server():
 
 def listen_for_events(url, data, model):
     print(f"Listening for events at {url}")
+    max_retry = 3
+    retry = 0
     while True:
         try:
             response = requests.post(url, json=data, stream=True)
             print(f"Response: {response.status_code}")
+            if response.status_code != 200:
+                print(f"Error: {response.text}")
+                logger.error(f"Error: {response.text}")
+                if retry < max_retry:
+                    retry += 1
+                    continue
+                else:
+                    print("Max retry reached. Exiting...")
+                    logger.error("Max retry reached. Exiting...")
+                    break;
             for line in response.iter_lines():
                 if line and line[0] != b':'[0]:
                     # log the line with logging
@@ -166,13 +179,18 @@ def start_daemon():
     
 def stop_daemon():
     try:
+        if os.path.exists(pid_file):
+            with open(pid_file, 'r') as file:
+                pid = file.read().strip()
+                pid = int(pid)
         mount_point = os.path.join(WORKING_DIR, "dropbox")
         subprocess.run(['umount', mount_point], check=True)
         shutil.rmtree(mount_point)
-        rootdir = os.path.join(WORKING_DIR, ".cache")
-        shutil.rmtree(rootdir)
+        os.kill(pid, signal.SIGKILL)
         if os.path.exists(pid_file):
             os.unlink(pid_file)
+        rootdir = os.path.join(WORKING_DIR, ".cache")
+        shutil.rmtree(rootdir)
     except subprocess.CalledProcessError as e:
         print(f"unmount failure：{e}")
     except Exception as e:
