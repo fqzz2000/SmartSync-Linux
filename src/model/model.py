@@ -14,7 +14,7 @@ import dropbox
 from functools import wraps
 from loguru import logger
 import json
-from datetime import datetime
+
 
 def lockWrapper(func):
     @wraps(func)
@@ -194,7 +194,7 @@ class DropBoxModel():
             return None
 
     @lockWrapper
-    def saveMetadataToFile(self) -> int:
+    def saveMetadataToFile(self):
         """
         List all files and folders in the Dropbox and save their metadata to a file in JSON format.
         """
@@ -204,7 +204,6 @@ class DropBoxModel():
             files,_ = self.dbx.list_folder("", recursive=True)
             
             for k, v in files.items():
-                print(v)
                 if isinstance(v,dropbox.files.FileMetadata):
                     mtime = max(v.client_modified, v.server_modified).isoformat()
                     data_to_save[v.path_display] = {
@@ -212,7 +211,7 @@ class DropBoxModel():
                     "size": v.size,
                     "type": "file",
                     "mtime": mtime,
-                    "update": True
+                    "uploaded": True
                     }
                 elif isinstance(v, dropbox.files.FolderMetadata):
                     data_to_save[v.path_display] = {
@@ -220,19 +219,20 @@ class DropBoxModel():
                     "size": None, 
                     "type": "folder",
                     "mtime": None,
-                    "update": True
+                    "uploaded": True
                     }
             
             with open(metadata_file_path, "w") as f:
                 json.dump(data_to_save, f, indent=4)
 
-            print(data_to_save)
+            # print(data_to_save)
             
-            return 0 
+            return data_to_save 
         
         except Exception as e:
+            
             print(e)
-            return -1
+            return {}
             
 
     def initialize_placeholders(self, path):
