@@ -3,7 +3,12 @@ import os
 from queue import Queue
 import json
 import time
+from datetime import datetime
+import logging
 
+logging.basicConfig(filename='webhook_server.log', level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
@@ -21,7 +26,10 @@ def webhook():
     #     abort(403)
     
     for userid in json.loads(request.data)['list_folder']['accounts']:
-        if userid not in user_queues:
+        if ':' not in userid:
+            continue
+        userid = userid.split(':')[1]
+        if len(userid) > 0 and userid not in user_queues:
             user_queues[userid] = Queue()
         user_queues[userid].put('File change detected')
     return '', 200
@@ -30,9 +38,11 @@ def stream_events(userid):
     while True:
         if userid in user_queues and not user_queues[userid].empty():
             message = user_queues[userid].get()
+            time_format = "%Y-%m-%d %H:%M:%S"
+            app.logger.debug(f"[{datetime.now().strftime(time_format)}]: notifying user {userid}")
             yield f"data: {message}\n\n"
         yield ":heartbeat\n\n"
-        time.sleep(20)
+        time.sleep(1)
 
 @app.route('/events/<userid>')
 def events(userid):
