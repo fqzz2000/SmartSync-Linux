@@ -14,6 +14,7 @@ import dropbox
 from functools import wraps
 from loguru import logger
 import json
+from datetime import datetime
 
 def lockWrapper(func):
     @wraps(func)
@@ -203,17 +204,23 @@ class DropBoxModel():
             files,_ = self.dbx.list_folder("", recursive=True)
             
             for k, v in files.items():
+                print(v)
                 if isinstance(v,dropbox.files.FileMetadata):
+                    mtime = max(v.client_modified, v.server_modified).isoformat()
                     data_to_save[v.path_display] = {
                     "name": v.name,
                     "size": v.size,
-                    "type": "file"
+                    "type": "file",
+                    "mtime": mtime,
+                    "update": True
                     }
                 elif isinstance(v, dropbox.files.FolderMetadata):
                     data_to_save[v.path_display] = {
                     "name": v.name,
                     "size": None, 
-                    "type": "folder"
+                    "type": "folder",
+                    "mtime": None,
+                    "update": True
                     }
             
             with open(metadata_file_path, "w") as f:
