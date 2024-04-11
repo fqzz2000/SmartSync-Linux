@@ -10,6 +10,8 @@ from src.fuselayer.fuselayer import FuseDropBox
 from src.lib import FUSE
 import os
 import shutil
+from zoneinfo import ZoneInfo  # Python 3.9+
+from tzlocal import get_localzone
 import dropbox
 from functools import wraps
 from loguru import logger
@@ -200,17 +202,21 @@ class DropBoxModel():
         """
         data_to_save = {}
         # metadata_file_path = '/tmp/dropbox/metadata.json'
+        # local_zone = ZoneInfo.localzone()
+        local_zone = get_localzone()
         try:
             files,_ = self.dbx.list_folder("", recursive=True)
             
             for k, v in files.items():
                 if isinstance(v,dropbox.files.FileMetadata):
-                    mtime = max(v.client_modified, v.server_modified).isoformat()
+                    mtime = max(v.client_modified, v.server_modified)
+                    utc_time = mtime.replace(tzinfo=ZoneInfo("UTC"))
+                    local_time = utc_time.astimezone(local_zone)
                     data_to_save[v.path_display] = {
                     "name": v.name,
                     "size": v.size,
                     "type": "file",
-                    "mtime": mtime,
+                    "mtime": local_time.isoformat(),
                     "uploaded": True
                     }
                 elif isinstance(v, dropbox.files.FolderMetadata):
