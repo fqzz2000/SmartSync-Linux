@@ -199,7 +199,7 @@ class DropBoxModel():
         List all files and folders in the Dropbox and save their metadata to a file in JSON format.
         """
         data_to_save = {}
-        metadata_file_path = '/tmp/dropbox/metadata.json'
+        # metadata_file_path = '/tmp/dropbox/metadata.json'
         try:
             files,_ = self.dbx.list_folder("", recursive=True)
             
@@ -222,8 +222,8 @@ class DropBoxModel():
                     "uploaded": True
                     }
             
-            with open(metadata_file_path, "w") as f:
-                json.dump(data_to_save, f, indent=4)
+            # with open(metadata_file_path, "w") as f:
+            #     json.dump(data_to_save, f, indent=4)
 
             # print(data_to_save)
             
