@@ -140,7 +140,7 @@ def start_daemon():
         model = DropBoxModel(db, rootdir, swapdir)
         model.clearAll()
         # model.downloadAll()
-        model.saveMetadataToFile()
+        # model.saveMetadataToFile()
 
         #obtain all the metadata and display in the dropbox folder
         #as placeholder

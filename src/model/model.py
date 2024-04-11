@@ -241,21 +241,6 @@ class DropBoxModel():
             return {}
             
 
-    def initialize_placeholders(self, path):
-        try:
-            with open(path, 'r') as f:
-                metadata = json.load(f)
-        except FileNotFoundError:
-            print("Metadata file not found, attempting to download...")
-        
-        for item in metadata:
-            if item["type"] == "folder":
-                dir_path = os.path.join(self.rootdir, item["path_display"].lstrip('/'))
-                # print("dir_path ", dir_path)
-                os.makedirs(dir_path, exist_ok=True)
-              
-
-
 WORKING_DIR = "/home/yl910/SmartSync-Linux/"
 if __name__ == "__main__":
     print("Hello World")
