@@ -10,11 +10,14 @@ from src.fuselayer.fuselayer import FuseDropBox
 from src.lib import FUSE
 import os
 import shutil
+from zoneinfo import ZoneInfo  # Python 3.9+
+from tzlocal import get_localzone
 import dropbox
 from functools import wraps
 from loguru import logger
 import json
 import fcntl
+
 
 def lockWrapper(func):
     @wraps(func)
@@ -205,55 +208,50 @@ class DropBoxModel():
             return None
 
     @lockWrapper
-    def saveMetadataToFile(self) -> int:
+    def saveMetadataToFile(self):
         """
         List all files and folders in the Dropbox and save their metadata to a file in JSON format.
         """
         data_to_save = {}
-        metadata_file_path = '/tmp/dropbox/metadata.json'
+        # metadata_file_path = '/tmp/dropbox/metadata.json'
+        # local_zone = ZoneInfo.localzone()
+        local_zone = get_localzone()
         try:
             files,_ = self.dbx.list_folder("", recursive=True)
             
             for k, v in files.items():
                 if isinstance(v,dropbox.files.FileMetadata):
+                    mtime = max(v.client_modified, v.server_modified)
+                    utc_time = mtime.replace(tzinfo=ZoneInfo("UTC"))
+                    local_time = utc_time.astimezone(local_zone)
                     data_to_save[v.path_display] = {
                     "name": v.name,
                     "size": v.size,
-                    "type": "file"
+                    "type": "file",
+                    "mtime": local_time.isoformat(),
+                    "uploaded": True
                     }
                 elif isinstance(v, dropbox.files.FolderMetadata):
                     data_to_save[v.path_display] = {
                     "name": v.name,
                     "size": None, 
-                    "type": "folder"
+                    "type": "folder",
+                    "mtime": None,
+                    "uploaded": True
                     }
             
-            with open(metadata_file_path, "w") as f:
-                json.dump(data_to_save, f, indent=4)
+            # with open(metadata_file_path, "w") as f:
+            #     json.dump(data_to_save, f, indent=4)
 
-            print(data_to_save)
+            # print(data_to_save)
             
-            return 0 
+            return data_to_save 
         
         except Exception as e:
-            print(e)
-            return -1
             
-
-    def initialize_placeholders(self, path):
-        try:
-            with open(path, 'r') as f:
-                metadata = json.load(f)
-        except FileNotFoundError:
-            print("Metadata file not found, attempting to download...")
-        
-        for item in metadata:
-            if item["type"] == "folder":
-                dir_path = os.path.join(self.rootdir, item["path_display"].lstrip('/'))
-                # print("dir_path ", dir_path)
-                os.makedirs(dir_path, exist_ok=True)
-              
-
+            print(e)
+            return {}
+            
 
 WORKING_DIR = "/home/yl910/SmartSync-Linux/"
 if __name__ == "__main__":
