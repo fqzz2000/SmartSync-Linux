@@ -56,33 +56,33 @@ def callback():
 def run_login_server():
     login_app.run(debug=False, port=5000, use_reloader=False)
 
-def listen_for_events(url, data, model):
-    print(f"Listening for events at {url}")
-    max_retry = 3
-    retry = 0
-    while True:
-        try:
-            response = requests.post(url, json=data, stream=True)
-            print(f"Response: {response.status_code}")
-            if response.status_code != 200:
-                print(f"Error: {response.text}")
-                logger.error(f"Error: {response.text}")
-                if retry < max_retry:
-                    retry += 1
-                    continue
-                else:
-                    print("Max retry reached. Exiting...")
-                    logger.error("Max retry reached. Exiting...")
-                    break;
-            for line in response.iter_lines():
-                if line and line[0] != b':'[0]:
-                    # log the line with logging
-                    print(f'Event: {line}')
-                    model.triggerDownload()
-                    logger.warning(f'Event: {line}')
+# def listen_for_events(url, data, model):
+#     print(f"Listening for events at {url}")
+#     max_retry = 3
+#     retry = 0
+#     while True:
+#         try:
+#             response = requests.post(url, json=data, stream=True)
+#             print(f"Response: {response.status_code}")
+#             if response.status_code != 200:
+#                 print(f"Error: {response.text}")
+#                 logger.error(f"Error: {response.text}")
+#                 if retry < max_retry:
+#                     retry += 1
+#                     continue
+#                 else:
+#                     print("Max retry reached. Exiting...")
+#                     logger.error("Max retry reached. Exiting...")
+#                     break;
+#             for line in response.iter_lines():
+#                 if line and line[0] != b':'[0]:
+#                     # log the line with logging
+#                     print(f'Event: {line}')
+#                     model.triggerDownload()
+#                     logger.warning(f'Event: {line}')
 
-        except Exception as e:
-            print(f"Error listening for events: {e}")
+#         except Exception as e:
+#             print(f"Error listening for events: {e}")
     
 def start_daemon():
     # create directories and clearing previous logs
@@ -133,9 +133,9 @@ def start_daemon():
     )
     with context:
         auth_token = os.getenv('MY_APP_AUTH_TOKEN')
-        data = {
-            'token': auth_token
-        }
+        # data = {
+        #     'token': auth_token
+        # }
         db = DropboxInterface(auth_token)
         model = DropBoxModel(db, rootdir, swapdir)
         model.clearAll()
@@ -157,10 +157,10 @@ def start_daemon():
             print("Error: user_id is empty")
             sys.exit(1)
         print("user_id: ", user_id)
-        url = f"{config.SUBSCRIBE_URL}/{user_id}"
-        subscribe_thread = threading.Thread(target=listen_for_events, args=(url, data, model))
-        subscribe_thread.daemon = True
-        subscribe_thread.start()
+        # url = f"{config.SUBSCRIBE_URL}/{user_id}"
+        # subscribe_thread = threading.Thread(target=listen_for_events, args=(url, data, model))
+        # subscribe_thread.daemon = True
+        # subscribe_thread.start()
         
         try:
             fuse = FUSE(
