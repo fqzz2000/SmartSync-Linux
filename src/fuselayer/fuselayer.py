@@ -184,6 +184,7 @@ class FuseDropBox(LoggingMixIn, Operations):
                     if rmt > lct:
                         self.metadata[path] = metadata_from_db[path]
                         self.metadata[path] = db_v
+                        self.db.open_file(path, local_path)
         except FileNotFoundError:
             raise FuseOSError(errno.ENOENT)
         # print(self.metadata)
