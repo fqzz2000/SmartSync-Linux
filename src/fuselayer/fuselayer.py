@@ -179,12 +179,13 @@ class FuseDropBox(LoggingMixIn, Operations):
                 local_v = self.metadata[path]
                 if local_v["uploaded"]:
                     db_v = metadata_from_db.get(path)
-                    lct = datetime.fromisoformat(local_v["mtime"])
-                    rmt = datetime.fromisoformat(db_v["mtime"])
-                    if rmt > lct:
-                        self.metadata[path] = metadata_from_db[path]
-                        self.metadata[path] = db_v
-                        self.db.open_file(path, local_path)
+                    if db_v:
+                        lct = datetime.fromisoformat(local_v["mtime"])
+                        rmt = datetime.fromisoformat(db_v["mtime"])
+                        if rmt > lct:
+                            self.metadata[path] = metadata_from_db[path]
+                            self.metadata[path] = db_v
+                            self.db.open_file(path, local_path)
         except FileNotFoundError:
             raise FuseOSError(errno.ENOENT)
         # print(self.metadata)
