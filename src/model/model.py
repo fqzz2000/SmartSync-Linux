@@ -14,6 +14,7 @@ import dropbox
 from functools import wraps
 from loguru import logger
 import json
+import fcntl
 
 def lockWrapper(func):
     @wraps(func)
@@ -165,7 +166,18 @@ class DropBoxModel():
             return -1
         
     def open_file(self, path, local_path):
-        self.dbx.download(path, local_path)
+        lockfile_path = f"{local_path}.lock"
+        with open(lockfile_path, 'w') as lockfile:
+            try:
+                fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB) # throw an exception if the file is locked
+                self.dbx.download(path, local_path)
+            except BlockingIOError:
+                fcntl.flock(lockfile, fcntl.LOCK_EX) # blocked until the file is unlocked
+            finally:
+                if os.path.exists(lockfile_path):
+                    os.remove(lockfile_path)
+                
+        
         
     @lockWrapper
     def move(self, old:str, new:str) -> int:

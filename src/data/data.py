@@ -89,6 +89,7 @@ class DropboxInterface:
                     cursor.offset = f.tell()  
 
     def download(self, path, file):
+        logger.warning(f"Downloading {path} to {file}")
         self.dbx.files_download_to_file(file, path)
 
     def download_folder(self, path, file, rootdir):
