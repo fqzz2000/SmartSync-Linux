@@ -17,7 +17,7 @@ from functools import wraps
 from loguru import logger
 import json
 import fcntl
-
+from datetime import datetime
 
 def lockWrapper(func):
     @wraps(func)
@@ -42,6 +42,16 @@ class DropBoxModel():
         self.dthread = threading.Thread(target=self.downloadingThread)
         self.thread.start()
         self.dthread.start()
+        self.metadata = {}
+        self.metadata_file_path = '/tmp/dropbox/metadata.json'
+        if os.path.exists(self.metadata_file_path):
+            with open(self.metadata_file_path, 'r') as f:
+                try:
+                    self.metadata = json.load(f)
+                except Exception as e:
+                    logger.error(f"Error loading metadata from file: {e}")
+        for k, v in self.metadata.items():
+            v['uploaded'] = True
         print("Model initialized")
 
     def stop(self):
@@ -57,7 +67,7 @@ class DropBoxModel():
             file = {path: self.dbx.getmetadata(path)}
             return self.formatMetadata(file)
         except Exception as e:
-            print(e)
+            logger.error(e)
             return None
 
     def fetchDirMetadata(self, path:str) -> dict:
@@ -70,7 +80,7 @@ class DropBoxModel():
             return self.formatMetadata(files)
 
         except Exception as e:
-            print(e)
+            logger.error(e)
             return None
     
     def formatMetadata(self, files) -> dict:
@@ -125,17 +135,20 @@ class DropBoxModel():
         flushThread.start()
 
     @lockWrapper
-    def write(self, path:str) -> int:
+    def write(self, path:str, new_size) -> int:
         '''
         upload the file to dropbox
         '''
+        # self.metadata[path]["uploaded"] = False
+        self.metadata[path]["size"] = new_size
+        self.metadata[path]["mtime"] = time.time()
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
             self.synchronizeThread.addTask(self.rootdir+path, path)
             return 0
         except Exception as e:
-            print(e)
+            logger.error(e)
             return -1
 
     @lockWrapper
@@ -143,51 +156,134 @@ class DropBoxModel():
         '''
         create a folder in the dropbox
         '''
-        try:
-            new_path = os.path.join(self.rootdir, path)
-            os.mkdir(new_path, mode)
-            self.dbx.mkdir("/" + path)
-            return 0
-        except Exception as e:
-            print(e)
-            return -1
-
+        # create remotely
+        self.dbx.mkdir("/" + path)
+        # create locally
+        new_path = os.path.join(self.rootdir, path)
+        os.mkdir(new_path, mode)
+        dir_name = os.path.basename("/" + path)
+        new_file_metadata = {
+            "name": dir_name, 
+            "size": 0,
+            "type": "folder",
+            "mtime": None,
+            "uploaded": True
+        }
+        self.metadata["/" + path] = new_file_metadata
+        self.flushMetadataAsync(self.metadata)
+        return 0
+    
+    @lockWrapper
+    def createFile(self, path:str, mode) -> int:
+        local_path = os.path.join(self.rootdir, path.lstrip('/'))
+        ret = os.open(local_path, os.O_CREAT | os.O_WRONLY, mode)
+        file_name = os.path.basename(path)
+        new_file_metadata = {
+            "name": file_name, 
+            "size": 0,
+            "type": "file",
+            "mtime": time.time(),
+            "uploaded": False
+            }
+        self.metadata[path] = new_file_metadata
+        self.flushMetadataAsync(self.metadata)
+        # print(f"create, current metatdata {self.metadata}")
+        return ret
+    
     @lockWrapper
     def deleteFolder(self, path:str) -> int:
         '''
         delete a file in the dropbox
         '''
+        # remove remotely
         try:
             self.dbx.delete("/" + path)
-            new_path = os.path.join(self.rootdir, path)
-            os.rmdir(new_path)
-            return 0
         except Exception as e:
-            print(e)
+            logger.error(e)
             return -1
+        # remove locally
+        new_path = os.path.join(self.rootdir, path)
+        if os.path.exists(new_path):
+            try:
+                os.rmdir(new_path)
+            except Exception as e:
+                logger.error(e)
+                return -1
+            # update metadata
+            keys_to_delete = [k for k in self.metadata.keys() if k.startswith("/" + path)]
+            for key in keys_to_delete:
+                self.metadata.pop(key)
+            self.flushMetadataAsync(self.metadata)
+        return 0
         
     @lockWrapper
     def deleteFile(self, path:str) -> int:
         '''
         delete a file in the dropbox
         '''
+        # remove remotely
         try:
-            new_path = os.path.join(self.rootdir, path)
-            os.unlink(new_path)
             self.dbx.delete("/" + path)
-            return 0
         except Exception as e:
-            print(e)
+            logger.error(e)
             return -1
-        
-    def open_file(self, path, local_path):
+        # remove locally
+        new_path = os.path.join(self.rootdir, path)
+        if os.path.exists(new_path):
+            try:
+                os.unlink(new_path)
+            except Exception as e:
+                logger.error(e)
+                return -1
+            # update metadata
+            if path in self.metadata:
+                self.metadata.pop("/" + path)
+            self.flushMetadataAsync(self.metadata)
+        return 0
+
+    @lockWrapper
+    def open_file(self, path, local_path, flags):
+        try: 
+            remote_metadata = self.fetchOneMetadata(path)
+            remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
+            if remote_metadata is None:
+                return -1
+            if not os.path.exists(local_path):
+                self.download_file(path, local_path) # trigger download
+                self.metadata[path] = remote_metadata
+                self.flushMetadataAsync(self.metadata)
+                # self.metadata[path] = metadata_from_db[path]
+            else:
+                local_v = self.metadata[path]
+                if local_v["uploaded"]:
+                    # db_v = metadata_from_db.get(path)
+                    # if db_v is None:
+                    #     raise FuseOSError(errno.ENOENT)
+                    lct = datetime.fromisoformat(local_v["mtime"])
+                    rmt = datetime.fromisoformat(remote_metadata["mtime"])
+                    if rmt > lct:
+                        # self.metadata[path] = metadata_from_db[path]
+                        # self.metadata[path] = remote_metadata
+                        self.db.open_file(path, local_path)
+                        self.metadata[path] = remote_metadata
+                        self.db.flushMetadataAsync(self.metadata)
+        except (FileNotFoundError, dropbox.files.DownloadError) as e:
+            logger.error(f"Error opening file: {e}")
+            return -1
+        except Exception as e:
+            logger.error(f"Error opening file: {e}")
+            return -1
+        # print(self.metadata)
+        return os.open(local_path, flags)
+
+    @lockWrapper
+    def download_file(self, path, local_path):
         lockfile_path = f"{local_path}.lock"
         with open(lockfile_path, 'w') as lockfile:
             try:
                 fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB) # throw an exception if the file is locked
                 self.dbx.download(path, local_path)
             except BlockingIOError:
-                logger.warning(f"Fail to download")
                 fcntl.flock(lockfile, fcntl.LOCK_EX) # blocked until the file is unlocked
             finally:
                 if os.path.exists(lockfile_path):
@@ -198,15 +294,44 @@ class DropBoxModel():
         '''
         rename a file in the dropbox
         '''
+        # remote move
         try:
             self.dbx.move("/" + old, "/" + new)
-
         except Exception as e:
-            logger.warning(f"Error moving file: {e}")
+            logger.error(f"Error moving file: {e}")
             return -1
+        # local move
         old_path = os.path.join(self.rootdir, old)
         new_path = os.path.join(self.rootdir, new)
-        os.rename(old_path, new_path)
+        if os.path.exists(old_path):
+            new_path_dir = os.path.dirname(new_path)
+            if not os.path.exists( new_path_dir):
+                os.makedirs(new_path_dir)
+            try:
+                os.rename(old_path, new_path)
+            except Exception as e:
+                logger.error(f"Error moving file: {e}")
+                return -1
+            # metadata update
+            if old in self.metadata:
+                m_type = self.metadata[old]["type"]
+                self.metadata[new] = self.metadata.pop("/" + old)
+                self.metadata[new]["name"] = os.path.basename(new_path)
+                self.metadata[new]["mtime"] = time.time()
+                
+                if m_type == "folder":
+                    old_prefix = old + '/'
+                    new_prefix = new + '/'
+                    keys_to_update = [k for k in self.metadata.keys() if k.startswith(old_prefix)]
+                    for key in keys_to_update:
+                        new_key = new_prefix + key[len(old_prefix):]
+                        self.metadata[new_key] = self.metadata.pop(key)
+                        self.metadata[new_key]["mtime"] = time.time()
+            else:
+                remote_metadata = self.fetchOneMetadata("/" + new)
+                if remote_metadata is not None:
+                    self.metadata["/" + new] = remote_metadata.get("/" + new)
+            self.flushMetadataAsync(self.metadata)
         return 0
     
     def getSpaceUsage(self) -> dict:
@@ -216,7 +341,7 @@ class DropBoxModel():
         try:
             return self.dbx.users_get_space_usage()
         except Exception as e:
-            print(e)
+            logger.error(e)
             return None
 
     # def fetchAllMetadata(self):

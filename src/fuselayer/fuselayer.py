@@ -24,16 +24,6 @@ class FuseDropBox(LoggingMixIn, Operations):
         self.db = dbmodel
         logger.remove()
         logger.add("/tmp/dropbox/dropbox.log", level="INFO")
-        self.metadata = {}
-        self.metadata_file_path = '/tmp/dropbox/metadata.json'
-        if os.path.exists(self.metadata_file_path):
-            with open(self.metadata_file_path, 'r') as f:
-                try:
-                    self.metadata = json.load(f)
-                except Exception as e:
-                    logger.error(f"Error loading metadata from file: {e}")
-        for k, v in self.metadata.items():
-            v['uploaded'] = True
         
     def chmod(self, path, mode):
         # logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}, path: {path}")
@@ -54,20 +44,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     def create(self, path, mode):
         # logger.info(f"CREATE CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         logger.info(f"CREATE CALLED, path: {path}")
-        file_name = os.path.basename(path)
-        new_file_metadata = {
-            "name": file_name, 
-            "size": 0,
-            "type": "file",
-            "mtime": time.time(),
-            "uploaded": False
-            }
-        self.metadata[path] = new_file_metadata
-        # print(f"create, current metatdata {self.metadata}")
-        if path[0] == "/":
-            path = path[1:]
-        local_path = os.path.join(self.rootdir, path.lstrip('/'))
-        return os.open(local_path, os.O_CREAT | os.O_WRONLY, mode)
+        return self.db.createFile(path, mode)
             
     def getattr(self, path, fh=None):
         logger.info(f"GETATTR CALLED, path: {path}")
@@ -90,8 +67,8 @@ class FuseDropBox(LoggingMixIn, Operations):
         remote_metadata = self.db.fetchOneMetadata(path)
         remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
 
-        if path in self.metadata:
-            local_v = self.metadata[path]
+        if path in self.db.metadata:
+            local_v = self.db.metadata[path]
             ret = os.stat(local_path) if os.path.exists(local_path) else default_attrs
 
             if not local_v['uploaded']:
@@ -168,16 +145,6 @@ class FuseDropBox(LoggingMixIn, Operations):
     def mkdir(self, path, mode):
         logger.info(f"MKDIR CALLED, path: {path}")
         # logger.info(f"MKDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
-        
-        dir_name = os.path.basename(path)
-        new_file_metadata = {
-            "name": dir_name, 
-            "size": 0,
-            "type": "folder"}
-        self.metadata[path] = new_file_metadata
-        print(self.metadata)
-        if path[0] == "/":
-            path = path[1:]
         self.db.createFolder(path, mode)
 
     def open(self, path, flags):
@@ -185,40 +152,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         # logger.info(f"OPEN CALLED WITH ID {random.randint(0, 100)}, path: {path}")
 
         local_path = os.path.join(self.rootdir, path.lstrip('/'))
-        # metadata_from_db = self.db.saveMetadataToFile()
-
-        try: 
-            remote_metadata = self.db.fetchOneMetadata(path)
-            remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
-            if remote_metadata is None:
-                raise FuseOSError(errno.ENOENT)
-            if not os.path.exists(local_path):
-                self.db.open_file(path, local_path) # trigger download
-                self.metadata[path] = remote_metadata
-                self.db.flushMetadataAsync(self.metadata)
-                # self.metadata[path] = metadata_from_db[path]
-            else:
-                local_v = self.metadata[path]
-                if local_v["uploaded"]:
-                    # db_v = metadata_from_db.get(path)
-                    # if db_v is None:
-                    #     raise FuseOSError(errno.ENOENT)
-                    lct = datetime.fromisoformat(local_v["mtime"])
-                    rmt = datetime.fromisoformat(remote_metadata["mtime"])
-                    if rmt > lct:
-                        # self.metadata[path] = metadata_from_db[path]
-                        # self.metadata[path] = remote_metadata
-                        self.db.open_file(path, local_path)
-                        self.metadata[path] = remote_metadata
-                        self.db.flushMetadataAsync(self.metadata)
-        except (FileNotFoundError, dropbox.files.DownloadError) as e:
-            logger.error(f"Error opening file: {e}")
-            raise FuseOSError(errno.ENOENT)
-        except Exception as e:
-            logger.error(f"Error opening file: {e}")
-            raise FuseOSError(errno.EIO)
-        # print(self.metadata)
-        return os.open(local_path, flags)
+        return self.db.open_file(path, local_path, flags)
     
     def read(self, path, size, offset, fh):
         # id = random.randint(0, 100)
@@ -241,9 +175,9 @@ class FuseDropBox(LoggingMixIn, Operations):
             os.makedirs(local_path, exist_ok=True)
         
         direntries = ['.', '..']
-        for local_key in list(self.metadata.keys()):
-            if not self.metadata[local_key]["uploaded"]: # False if file hasn't been uploaded
-                m_name = self.metadata[local_key]["name"]
+        for local_key in list(self.db.metadata.keys()):
+            if not self.db.metadata[local_key]["uploaded"]: # False if file hasn't been uploaded
+                m_name = self.db.metadata[local_key]["name"]
                 direntries.append(m_name)
         if remote_metadata is not None:
             for m_path in remote_metadata.keys():
@@ -271,36 +205,17 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def rename(self, old, new):
         # logger.info(f"RENAME CALLED WITH ID {random.randint(0, 100)}, path: {path}")
-        logger.info(f"RENAME CALLED, path: {path}")
+        logger.info(f"RENAME CALLED, path: {old} to {new}")
 
-        if self.db.move(old.lstrip('/'), new.lstrip('/')) == 0:
-            local_path = os.path.join(self.rootdir, new.lstrip('/'))
-            # print("loca: ", local_path)
-            if old in self.metadata:
-                m_type = self.metadata[old]["type"]
-                self.metadata[new] = self.metadata.pop(old)
-                self.metadata[new]["name"] = os.path.basename(local_path)
-                self.metadata[new]["mtime"] = time.time()
-                
-                if m_type == "folder":
-                    old_prefix = old + '/'
-                    new_prefix = new + '/'
-                    keys_to_update = [k for k in self.metadata.keys() if k.startswith(old_prefix)]
-                    for key in keys_to_update:
-                        new_key = new_prefix + key[len(old_prefix):]
-                        self.metadata[new_key] = self.metadata.pop(key)
-                        self.metadata[new_key]["mtime"] = time.time()
-            else:
-                remote_metadata = self.db.fetchOneMetadata(new)
-                if remote_metadata is not None:
-                    self.metadata[new] = remote_metadata.get(new)
-            self.db.flushMetadataAsync(self.metadata)
+        if self.db.move(old.lstrip('/'), new.lstrip('/')) == -1:
+            raise FuseOSError(errno.ENOENT)
 
     def rmdir(self, path):
         # logger.info(f"RMDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         logger.info(f"RMDIR CALLED, path: {path}")
         # with multiple level support, need to raise ENOTEMPTY if contains any files
-        if self.db.deleteFolder(path) == 0:
+        if self.db.deleteFolder(path.lstrip('/')) == -1:
+            raise FuseOSError(errno.ENOENT)
 
     def setxattr(self, path, name, value, options, position=0):
         # logger.info(f"SETXATTR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
@@ -330,7 +245,7 @@ class FuseDropBox(LoggingMixIn, Operations):
 
     def symlink(self, target, source):
         # logger.info(f"SYMLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")'
-        logger.info(f"SYMLINK CALLED, path: {path}")
+        logger.info(f"SYMLINK CALLED, path: {target}")
         # os.close(os.open(target, os.O_CREAT))
         if target[0] == "/":
             target = target[1:]
@@ -344,25 +259,17 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"TRUNCATE CALLED, path: {path}")
         # logger.info(f"TRUNCATE CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         # make sure extending the file fills in zero bytes
-        new_path = path
-        if new_path[0] == "/":
-            new_path = new_path[1:]
-        new_path = os.path.join(self.rootdir, new_path)
+        new_path = os.path.join(self.rootdir, path.lstrip('/'))
         os.truncate(new_path, length)
-        new_size = os.path.getsize(new_path)
-        logger.warning(f"GOING TO UPLOAD {path}")
-        # self.metadata[path]["uploaded"] = False
-        self.metadata[path]["size"] = new_size
-        self.metadata[path]["mtime"] = time.time()
-        self.db.write(path)
-        logger.warning(f"TRUNCATE DONE ADD UPLOAD TASK")
+        # logger.warning(f"GOING TO UPLOAD {path}")
+        self.db.write(path, os.path.getsize(new_path))
+        # logger.warning(f"TRUNCATE DONE ADD UPLOAD TASK")
 
     def unlink(self, path):
         logger.info(f"UNLINK CALLED, path: {path}")
         # logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")
-        if path[0] == "/":
-            path = path[1:]
-        self.db.deleteFile(path)
+        if self.db.deleteFile(path.lstrip('/')) == -1:
+            raise FuseOSError(errno.ENOENT)
 
     def utimens(self, path, times=None):
         logger.info(f"UTIMENS CALLED, path: {path}")
@@ -372,30 +279,23 @@ class FuseDropBox(LoggingMixIn, Operations):
         os.utime(path, times)
 
     def write(self, path, data, offset, fh):
-        id = random.randint(0, 100)
+        # id = random.randint(0, 100)
         # logger.info(f"WRITE CALLED WITH ID {id}")
         ret = os.pwrite(fh, data, offset)
-        local_path = os.path.join(self.rootdir, path)
-        new_size = offset + ret
-        # self.metadata[path]["uploaded"] = False
-        self.metadata[path]["size"] = new_size
-        self.metadata[path]["mtime"] = time.time()
-        self.db.write(path)
+        # local_path = os.path.join(self.rootdir, path)
+        # new_size = offset + ret
+        self.db.write(path, offset + ret)
         #TODO
         #upload and change uploaded to True
         # self.db.upload(local_path,path, new_size)
         # logger.warning(f"WRITE DONE ADD UPLOAD TASK")
         return ret
     
-
     def release(self, path, fh):
         # logger.info(f"RELEASE CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         logger.info(f"RELEASE CALLED, path: {path}")
         os.close(fh)
         return 0
-
-    def update_metadata(path):
-        self.metadata[path]["uploaded"] = True
 
 if __name__ == "__main__":
     import argparse
