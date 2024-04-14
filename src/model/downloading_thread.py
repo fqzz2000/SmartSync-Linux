@@ -58,8 +58,6 @@ class DownloadingThread():
             self.refreshRootDir(metadata["download"])
             self.cleanRootDir(delList)
 
-            
-
     def stop(self):
         '''
         stop the thread

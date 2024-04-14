@@ -113,15 +113,22 @@ class DropBoxModel():
             finally:
                 fcntl.flock(lockfile, fcntl.LOCK_UN)
 
+    def flushMetadataAsync(self, metadata:dict):
+        '''
+        flush the metadata to the file asynchronously
+        '''
+        flushThread = threading.Thread(target=self.flushMetadata, args=(metadata,))
+        flushThread.start()
+
     @lockWrapper
-    def write(self, path:str) -> int:
+    def write(self, path:str, completion_handler) -> int:
         '''
         upload the file to dropbox
         '''
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
-            self.synchronizeThread.addTask(self.rootdir+path, path)
+            self.synchronizeThread.addTask(self.rootdir+path, path, completion_handler)
             return 0
         except Exception as e:
             print(e)
