@@ -125,14 +125,14 @@ class DropBoxModel():
         flushThread.start()
 
     @lockWrapper
-    def write(self, path:str, completion_handler) -> int:
+    def write(self, path:str) -> int:
         '''
         upload the file to dropbox
         '''
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
-            self.synchronizeThread.addTask(self.rootdir+path, path, completion_handler)
+            self.synchronizeThread.addTask(self.rootdir+path, path)
             return 0
         except Exception as e:
             print(e)

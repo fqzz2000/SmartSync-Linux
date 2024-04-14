@@ -329,10 +329,10 @@ class FuseDropBox(LoggingMixIn, Operations):
         os.truncate(new_path, length)
         new_size = os.path.getsize(new_path)
         logger.warning(f"GOING TO UPLOAD {path}")
-        self.metadata[path]["uploaded"] = False
+        # self.metadata[path]["uploaded"] = False
         self.metadata[path]["size"] = new_size
         self.metadata[path]["mtime"] = time.time()
-        self.db.write(path, lambda path: self.update_metadata(path))
+        self.db.write(path)
         logger.warning(f"TRUNCATE DONE ADD UPLOAD TASK")
 
     def unlink(self, path):
@@ -353,10 +353,10 @@ class FuseDropBox(LoggingMixIn, Operations):
         ret = os.pwrite(fh, data, offset)
         local_path = os.path.join(self.rootdir, path)
         new_size = offset + ret
-        self.metadata[path]["uploaded"] = False
+        # self.metadata[path]["uploaded"] = False
         self.metadata[path]["size"] = new_size
         self.metadata[path]["mtime"] = time.time()
-        self.db.write(path, lambda path: self.update_metadata(path))
+        self.db.write(path)
         #TODO
         #upload and change uploaded to True
         # self.db.upload(local_path,path, new_size)

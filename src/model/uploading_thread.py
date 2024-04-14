@@ -36,24 +36,23 @@ class UploadingThread():
             newQueue = {}
             self.mutex.acquire()
             for k,v in self.outstandingQueue.items():
-                path, file, completion_handler = k
+                path, file = k
                 timestamp = v
                 if maxSync:
-                    self.uploadingQueue.append((path, file, completion_handler))
+                    self.uploadingQueue.append((path, file))
                 elif time.time() - timestamp > self.synInterval:
-                    self.uploadingQueue.append((path, file, completion_handler))
+                    self.uploadingQueue.append((path, file))
                 else:
-                    newQueue[(path, file, completion_handler)] = timestamp
+                    newQueue[(path, file)] = timestamp
             self.outstandingQueue = newQueue
             self.mutex.release()
 
         # logger.warning(f"Uploading {len(self.uploadingQueue)} files")
         while len(self.uploadingQueue) > 0:
-            path, file, completion_handler = self.uploadingQueue.pop()
+            path, file = self.uploadingQueue.pop()
             logger.warning(f"Uploading {path} {file}")
             try:
                 self.dbx.upload(path, file, True)
-                completion_handler(path)
             except Exception as e:
                 # print to stderr
                 print(e, file=sys.stderr)
@@ -64,13 +63,13 @@ class UploadingThread():
     def stop(self):
         self._stop = True
     
-    def addTask(self, path:str, file:str, completion_handler):
+    def addTask(self, path:str, file:str):
         '''
         search the queue, if the file is already in the queue, update the timestamp
         otherwise, add the file to the queue
         '''
         # logger.warning(f"Task Added {path} {file}")
         if self.outstandingQueue.get((path, file), None) is not None:
-            self.outstandingQueue[(path, file, completion_handler)] = time.time()
+            self.outstandingQueue[(path, file)] = time.time()
         else:
-            self.outstandingQueue[(path, file, completion_handler)] = time.time()
+            self.outstandingQueue[(path, file)] = time.time()
