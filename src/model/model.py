@@ -63,8 +63,9 @@ class DropBoxModel():
         '''
         list the folder in the dropbox
         '''
+        list_folder_path = path if path != "/" else ""
         try:
-            files,_ = self.dbx.list_folder(path)
+            files,_ = self.dbx.list_folder(list_folder_path)
             return self.formatMetadata(files)
 
         except Exception as e:
@@ -107,11 +108,12 @@ class DropBoxModel():
         '''
         metadata_file_path = '/tmp/dropbox/metadata.json'
         with open(metadata_file_path, "w") as f:
-            fcntl.flock(lockfile, fcntl.LOCK_EX)
-            try:
-                json.dump(metadata, f, indent=4)
-            finally:
-                fcntl.flock(lockfile, fcntl.LOCK_UN)
+            # fcntl.flock(f, fcntl.LOCK_EX)
+            # try:
+            logger.warning(f"Flushing metadata to file, metadata: {metadata}")
+            json.dump(metadata, f, indent=4)
+            # finally:
+            #     fcntl.flock(f, fcntl.LOCK_UN)
 
     def flushMetadataAsync(self, metadata:dict):
         '''

@@ -73,4 +73,4 @@ class UploadingThread():
         if self.outstandingQueue.get((path, file), None) is not None:
             self.outstandingQueue[(path, file, completion_handler)] = time.time()
         else:
-            self.outstandingQueue[(path, fil, completion_handler)] = time.time()
+            self.outstandingQueue[(path, file, completion_handler)] = time.time()
