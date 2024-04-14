@@ -123,7 +123,9 @@ class DropBoxModel():
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 logger.warning(f"Flushing metadata to file, metadata: {metadata}")
+                self.mutex.acquire()
                 json.dump(metadata, f, indent=4)
+                self.mutex.release()
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
 

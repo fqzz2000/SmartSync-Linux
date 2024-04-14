@@ -53,9 +53,15 @@ class UploadingThread():
             logger.warning(f"Uploading {path} {file}")
             try:
                 self.dbx.upload(path, file, True)
+                self.mutex.acquire()
+                self.dbx.metadata[path].uploaded = True
+                self.mutex.release()
             except Exception as e:
                 # print to stderr
                 print(e, file=sys.stderr)
+                self.mutex.acquire()
+                self.dbx.metadata[path].uploaded = False
+                self.mutex.release()
                 return 
             # logger.warning(f"Upload {path} {file} done")
 
@@ -69,7 +75,6 @@ class UploadingThread():
         otherwise, add the file to the queue
         '''
         # logger.warning(f"Task Added {path} {file}")
-        if self.outstandingQueue.get((path, file), None) is not None:
-            self.outstandingQueue[(path, file)] = time.time()
-        else:
-            self.outstandingQueue[(path, file)] = time.time()
+        self.outstandingQueue[(path, file)] = time.time()
+        # change the uploaded metadata to false
+        self.dbx.metadata[path].uploaded = False
