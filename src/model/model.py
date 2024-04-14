@@ -48,21 +48,71 @@ class DropBoxModel():
         self.downloadingThread.stop()
         self.thread.join()
 
-    def triggerDownload(self):
-        self.downloadingThread.addTask()
-    
-    @lockWrapper
-    def read(self, path:str, file:str) -> int:
+    def fetchOneMetadata(self, path:str) -> dict:
         '''
-        download the file from dropbox
+        get the metadata of the file
         '''
         try:
-            self.dbx.download(path, file)
-            return 0
+            file = {path: self.dbx.getmetadata(path)}
+            return self.formatMetadata(file)
         except Exception as e:
             print(e)
-            return -1
+            return None
+
+    def fetchDirMetadata(self, path:str) -> dict:
+        '''
+        list the folder in the dropbox
+        '''
+        try:
+            files,_ = self.dbx.list_folder(path)
+            return self.formatMetadata(files)
+
+        except Exception as e:
+            print(e)
+            return None
     
+    def formatMetadata(self, files) -> dict:
+        '''
+        format the metadata to the format that the fuse layer can understand
+        '''
+        metadata = {}
+        local_zone = get_localzone()
+        for k, v in files.items():
+            if isinstance(v,dropbox.files.FileMetadata):
+                mtime = max(v.client_modified, v.server_modified)
+                utc_time = mtime.replace(tzinfo=ZoneInfo("UTC"))
+                local_time = utc_time.astimezone(local_zone)
+
+                metadata[v.path_display] = {
+                "name": v.name,
+                "size": v.size,
+                "type": "file",
+                "mtime": local_time.isoformat(),
+                "uploaded": True
+                }
+            elif isinstance(v, dropbox.files.FolderMetadata):
+                metadata[v.path_display] = {
+                "name": v.name,
+                "size": None, 
+                "type": "folder",
+                "mtime": None,
+                "uploaded": True
+                }
+
+        return metadata
+
+    def flushMetadata(self, metadata:dict):
+        '''
+        flush the metadata to the file
+        '''
+        metadata_file_path = '/tmp/dropbox/metadata.json'
+        with open(metadata_file_path, "w") as f:
+            fcntl.flock(lockfile, fcntl.LOCK_EX)
+            try:
+                json.dump(metadata, f, indent=4)
+            finally:
+                fcntl.flock(lockfile, fcntl.LOCK_UN)
+
     @lockWrapper
     def write(self, path:str) -> int:
         '''
@@ -71,59 +121,11 @@ class DropBoxModel():
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
-
             self.synchronizeThread.addTask(self.rootdir+path, path)
             return 0
         except Exception as e:
             print(e)
             return -1
-        
-    def listFolder(self, path:str) -> dict:
-        '''
-        list the folder in the dropbox
-        '''
-        try:
-            return self.dbx.list_folder(path)
-        except Exception as e:
-            print(e)
-            return None
-        
-    @lockWrapper
-    def getmetadata(self, path:str) -> dict:
-        '''
-        get the metadata of the file
-        '''
-        try:
-            return self.dbx.getmetadata(path)
-        except Exception as e:
-            print(e)
-            return None
-        
-    @lockWrapper
-    def downloadAll(self) -> int:
-        '''
-        download all the files in the dropbox
-        '''
-        self.downloadingThread.addTask()
-
-    @lockWrapper
-    def clearAll(self) -> int:
-        '''
-        clear all the files in the dropbox
-        '''
-        for filename in os.listdir(self.rootdir):
-            file_path = os.path.join(self.rootdir, filename)
-            try:
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-                elif os.path.islink(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                print(e)
-                return -1
-        return 0
 
     @lockWrapper
     def createFolder(self, path:str, mode) -> int:
@@ -195,70 +197,94 @@ class DropBoxModel():
             print(e)
             return None
 
-    @lockWrapper
-    def saveMetadataToFile(self):
-        """
-        List all files and folders in the Dropbox and save their metadata to a file in JSON format.
-        """
-        data_to_save = {}
-        # metadata_file_path = '/tmp/dropbox/metadata.json'
-        # local_zone = ZoneInfo.localzone()
-        local_zone = get_localzone()
-        try:
-            files,_ = self.dbx.list_folder("", recursive=True)
-            
-            for k, v in files.items():
-                if isinstance(v,dropbox.files.FileMetadata):
-                    mtime = max(v.client_modified, v.server_modified)
-                    utc_time = mtime.replace(tzinfo=ZoneInfo("UTC"))
-                    local_time = utc_time.astimezone(local_zone)
-                    data_to_save[v.path_display] = {
-                    "name": v.name,
-                    "size": v.size,
-                    "type": "file",
-                    "mtime": local_time.isoformat(),
-                    "uploaded": True
-                    }
-                elif isinstance(v, dropbox.files.FolderMetadata):
-                    data_to_save[v.path_display] = {
-                    "name": v.name,
-                    "size": None, 
-                    "type": "folder",
-                    "mtime": None,
-                    "uploaded": True
-                    }
-            
-            # with open(metadata_file_path, "w") as f:
-            #     json.dump(data_to_save, f, indent=4)
-
-            # print(data_to_save)
-            
-            return data_to_save 
+    # def fetchAllMetadata(self):
+    #     """
+    #     List all files and folders in the Dropbox and save their metadata to a file in JSON format.
+    #     """
+    #     # metadata = {}
+    #     # metadata_file_path = '/tmp/dropbox/metadata.json'
+    #     # local_zone = ZoneInfo.localzone()
+    #     # local_zone = get_localzone()
+    #     try:
+    #         files,_ = self.dbx.list_folder("", recursive=True)
+    #         return self.formatMetadata(files)
+    #         # with open(metadata_file_path, "w") as f:
+    #         #     json.dump(data_to_save, f, indent=4)
+    #         # print(data_to_save)
+    #         # return data_to_save 
         
-        except Exception as e:
-            
-            print(e)
-            return {}
-            
+    #     except Exception as e:
+    #         print(e)
+    #         return None
 
+    # def triggerDownload(self):
+    #     self.downloadingThread.addTask()
+    
+    # @lockWrapper
+    # def read(self, path:str, file:str) -> int:
+    #     '''
+    #     download the file from dropbox
+    #     '''
+    #     try:
+    #         self.dbx.download(path, file)
+    #         return 0
+    #     except Exception as e:
+    #         print(e)
+    #         return -1
+
+    # @lockWrapper
+    # def downloadAll(self) -> int:
+    #     '''
+    #     download all the files in the dropbox
+    #     '''
+    #     self.downloadingThread.addTask()
+
+    # @lockWrapper
+    # def clearAll(self) -> int:
+    #     '''
+    #     clear all the files in the dropbox
+    #     '''
+    #     for filename in os.listdir(self.rootdir):
+    #         file_path = os.path.join(self.rootdir, filename)
+    #         try:
+    #             if os.path.isfile(file_path):
+    #                 os.remove(file_path)
+    #             elif os.path.islink(file_path):
+    #                 os.unlink(file_path)
+    #             elif os.path.isdir(file_path):
+    #                 shutil.rmtree(file_path)
+    #         except Exception as e:
+    #             print(e)
+    #             return -1
+    #     return 0
+    
 WORKING_DIR = "/home/yl910/SmartSync-Linux/"
 if __name__ == "__main__":
-    print("Hello World")
-    if len(sys.argv) != 2:
-        print("Usage: {} <token>".format(sys.argv[0]))
-        sys.exit(1)
+    # print("Hello World")
+    # if len(sys.argv) != 2:
+    #     print("Usage: {} <token>".format(sys.argv[0]))
+    #     sys.exit(1)
 
-    TOKEN = sys.argv[1]
+    # TOKEN = sys.argv[1]
+    TOKEN = ""
     db = DropboxInterface(TOKEN)
-    rootdir = os.path.join(WORKING_DIR, "cache")
-    swapdir = os.path.join(WORKING_DIR, "swap")
-    model = DropBoxModel(db, rootdir, swapdir)
-    model.clearAll()
-    model.saveMetadataToFile()
-    # logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
-    fuse = FUSE(
-        FuseDropBox(rootdir, model),
-        os.path.join(WORKING_DIR, "dropbox"),
-        foreground=True,
-        allow_other=True,
-    )
+    model = DropBoxModel(db, WORKING_DIR, WORKING_DIR)
+    rv = model.fetchDirMeta("/test_webhook")
+    print(rv)
+    one_rv = model.fetchOneMeta("/test_webhook/lyt.txt")
+    print(one_rv)
+    test = None
+    if test:
+        print("True")
+    # rootdir = os.path.join(WORKING_DIR, "cache")
+    # swapdir = os.path.join(WORKING_DIR, "swap")
+    # model = DropBoxModel(db, rootdir, swapdir)
+    # model.clearAll()
+    # model.saveMetadataToFile()
+    # # logging.basicConfig(filename='dropbox.log', level=logging.DEBUG)
+    # fuse = FUSE(
+    #     FuseDropBox(rootdir, model),
+    #     os.path.join(WORKING_DIR, "dropbox"),
+    #     foreground=True,
+    #     allow_other=True,
+    # )

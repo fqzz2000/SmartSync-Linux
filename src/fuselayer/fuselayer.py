@@ -29,23 +29,25 @@ class FuseDropBox(LoggingMixIn, Operations):
         if os.path.exists(self.metadata_file_path):
             with open(self.metadata_file_path, 'r') as f:
                 self.metadata = json.load(f)
+        for k, v in self.metadata.items():
+            v.uploaded = True
         
     def chmod(self, path, mode):
-        logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         return os.chmod(path, mode)
 
     def chown(self, path, uid, gid):
-        logger.info(f"CHOWN CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"CHOWN CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         os.chown(path, uid, gid)
 
     def create(self, path, mode):
-        logger.info(f"CREATE CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"CREATE CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         file_name = os.path.basename(path)
         new_file_metadata = {
             "name": file_name, 
@@ -62,7 +64,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         return os.open(local_path, os.O_CREAT | os.O_WRONLY, mode)
             
     def getattr(self, path, fh=None):
-        logger.info(f"GETATTR CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"GETATTR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
      
         local_path = os.path.join(self.rootdir, path.lstrip('/'))
         now = time.time()
@@ -76,8 +78,9 @@ class FuseDropBox(LoggingMixIn, Operations):
         if path == "/":
             return {'st_mode': (S_IFDIR | 0o755), **default_attrs}
 
-        remote_metadata = self.db.saveMetadataToFile()
-        db_v = remote_metadata.get(path)
+        # remote_metadata = self.db.saveMetadataToFile()
+        # db_v = remote_metadata.get(path)
+        remote_metadata = self.db.fetchOneMetadata(path)
 
         if path in self.metadata:
             local_v = self.metadata[path]
@@ -94,9 +97,9 @@ class FuseDropBox(LoggingMixIn, Operations):
                     "st_size": ret.st_size,
                     "st_uid": ret.st_uid,
                 }
-            elif db_v and db_v.get("type") == "file":
+            elif remote_metadata and remote_metadata.get("type") == "file":
                 lct = datetime.fromisoformat(local_v["mtime"])
-                rmt = datetime.fromisoformat(db_v["mtime"])
+                rmt = datetime.fromisoformat(remote_metadata["mtime"])
                 if lct > rmt:
                     return {
                         **ret,
@@ -106,23 +109,23 @@ class FuseDropBox(LoggingMixIn, Operations):
                     return {
                         **default_attrs,
                         "st_mtime": rmt.timestamp(),  # Assume rmt is datetime object
-                        "st_size": db_v['size'],
+                        "st_size": remote_metadata['size'],
                         'st_mode': (S_IFREG | 0o644),
                     }
 
-        if db_v:
+        if remote_metadata is not None:
             return {
                 **default_attrs,
-                "st_mtime": int(now) if db_v['type'] == 'folder' else int(datetime.fromisoformat(db_v["mtime"]).timestamp()),
-                'st_mode': (S_IFDIR | 0o755) if db_v["type"] == "folder" else (S_IFREG | 0o644),
-                'st_nlink': 2 if db_v["type"] == "folder" else 1,
-                'st_size': db_v['size'] if db_v['size'] is not None else 0,
+                "st_mtime": int(now) if remote_metadata['type'] == 'folder' else int(datetime.fromisoformat(remote_metadata["mtime"]).timestamp()),
+                'st_mode': (S_IFDIR | 0o755) if remote_metadata["type"] == "folder" else (S_IFREG | 0o644),
+                'st_nlink': 2 if remote_metadata["type"] == "folder" else 1,
+                'st_size': remote_metadata['size'] if remote_metadata['size'] is not None else 0,
             }
 
         raise OSError(errno.ENOENT, "No such file or directory")       
 
     def getxattr(self, path, name, position=0):
-        logger.info(f"GETXATTR CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"GETXATTR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         ret = b'default'
         if path[0] == "/":
             path = path[1:]
@@ -146,14 +149,14 @@ class FuseDropBox(LoggingMixIn, Operations):
             #     return metadata.get(name, bytes(""))
 
     def listxattr(self, path):
-        logger.info(f"LISTXATTR CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"LISTXATTR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         os.listxattr(path)
 
     def mkdir(self, path, mode):
-        logger.info(f"MKDIR CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"MKDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         
         dir_name = os.path.basename(path)
         new_file_metadata = {
@@ -167,25 +170,30 @@ class FuseDropBox(LoggingMixIn, Operations):
         self.db.createFolder(path, mode)
 
     def open(self, path, flags):
-        logger.info(f"OPEN CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"OPEN CALLED WITH ID {random.randint(0, 100)}, path: {path}")
 
         local_path = os.path.join(self.rootdir, path.lstrip('/'))
-        metadata_from_db = self.db.saveMetadataToFile()
+        # metadata_from_db = self.db.saveMetadataToFile()
+
         try: 
+            remote_metadata = self.db.fetchOneMetadata(path)
+            if remote_metadata is None:
+                        raise FuseOSError(errno.ENOENT)
             if not os.path.exists(local_path):
-                self.db.open_file(path, local_path)
-                self.metadata[path] = metadata_from_db[path]
+                self.db.open_file(path, local_path) # trigger download
+                self.metadata[path] = remote_metadata
+                # self.metadata[path] = metadata_from_db[path]
             else:
                 local_v = self.metadata[path]
                 if local_v["uploaded"]:
-                    db_v = metadata_from_db.get(path)
-                    if db_v is None:
-                        raise FuseOSError(errno.ENOENT)
+                    # db_v = metadata_from_db.get(path)
+                    # if db_v is None:
+                    #     raise FuseOSError(errno.ENOENT)
                     lct = datetime.fromisoformat(local_v["mtime"])
-                    rmt = datetime.fromisoformat(db_v["mtime"])
+                    rmt = datetime.fromisoformat(remote_metadata["mtime"])
                     if rmt > lct:
                         self.metadata[path] = metadata_from_db[path]
-                        self.metadata[path] = db_v
+                        self.metadata[path] = remote_metadata
                         self.db.open_file(path, local_path)
         except FileNotFoundError:
             raise FuseOSError(errno.ENOENT)
@@ -194,8 +202,8 @@ class FuseDropBox(LoggingMixIn, Operations):
     
     def read(self, path, size, offset, fh):
         id = random.randint(0, 100)
-        logger.info(f"READ CALLED WITH ID {id}")
-        logger.debug(f"STARTING READ WITH ID {id}")
+        logger.info(f"READ CALLED WITH ID {id}, path: {path}")
+        # logger.debug(f"STARTING READ WITH ID {id}")
         
         local_path = os.path.join(self.rootdir, path.lstrip('/'))
         with open(local_path, 'rb') as f:
@@ -203,8 +211,9 @@ class FuseDropBox(LoggingMixIn, Operations):
             return f.read(size)
 
     def readdir(self, path, fh):
-        logger.info(f"READDIR CALLED WITH ID {random.randint(0, 100)}")
-        remote_metadata = self.db.saveMetadataToFile()
+        logger.info(f"READDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
+        # remote_metadata = self.db.saveMetadataToFile()
+        remote_metadata = self.db.fetchDirMetadata(path)
 
         local_path = os.path.join(self.rootdir, path.lstrip('/'))
         if not os.path.exists(local_path):
@@ -216,29 +225,29 @@ class FuseDropBox(LoggingMixIn, Operations):
                 m_name = self.metadata[local_key]["name"]
                 direntries.append(m_name)
         for m_path in remote_metadata.keys():
-            if os.path.dirname(m_path.lstrip('/')) == path.lstrip('/'):
-                    m_name = remote_metadata[m_path]["name"]
-                    if m_name not in direntries:
-                        direntries.append(m_name)
+            # if os.path.dirname(m_path.lstrip('/')) == path.lstrip('/'):
+                m_name = remote_metadata[m_path]["name"]
+                if m_name not in direntries:
+                    direntries.append(m_name)
         
         return direntries
 
     def readlink(self, path):
-        logger.info(f"READLINK CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"READLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         return os.readlink(path)
 
     def removexattr(self, path, name):
-        logger.info(f"REMOVEXATTR CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"REMOVEXATTR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         os.removexattr(path, name)
 
     def rename(self, old, new):
-        logger.info(f"RENAME CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"RENAME CALLED WITH ID {random.randint(0, 100)}, path: {path}")
 
         self.db.move(old.lstrip('/'), new.lstrip('/'))
         local_path = os.path.join(self.rootdir, new.lstrip('/'))
@@ -257,21 +266,21 @@ class FuseDropBox(LoggingMixIn, Operations):
                     self.metadata[new_key] = self.metadata.pop(key)
 
     def rmdir(self, path):
-        logger.info(f"RMDIR CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"RMDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         # with multiple level support, need to raise ENOTEMPTY if contains any files
         if path[0] == "/":
             path = path[1:]
         self.db.deleteFolder(path)
 
     def setxattr(self, path, name, value, options, position=0):
-        logger.info(f"SETXATTR CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"SETXATTR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         path = os.path.join(self.rootdir, path)
         os.setxattr(path, name, value, options)
 
     def statfs(self, path):
-        logger.info(f"STATFS CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"STATFS CALLED WITH ID {random.randint(0, 100)}, path: {path}")
 
         total_space, used_space = self.db.getSpaceUsage()
         free_space = total_space - used_space
@@ -288,7 +297,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         }
 
     def symlink(self, target, source):
-        logger.info(f"SYMLINK CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"SYMLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         # os.close(os.open(target, os.O_CREAT))
         if target[0] == "/":
             target = target[1:]
@@ -299,7 +308,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         os.symlink(source, target)
 
     def truncate(self, path, length, fh=None):
-        logger.info(f"TRUNCATE CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"TRUNCATE CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         # make sure extending the file fills in zero bytes
         new_path = path
         if new_path[0] == "/":
@@ -311,13 +320,13 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.warning(f"TRUNCATE DONE ADD UPLOAD TASK")
 
     def unlink(self, path):
-        logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         self.db.deleteFile(path)
 
     def utimens(self, path, times=None):
-        logger.info(f"UTIMENS CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"UTIMENS CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if path[0] == "/":
             path = path[1:]
         os.utime(path, times)
@@ -339,7 +348,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     
 
     def release(self, path, fh):
-        logger.info(f"RELEASE CALLED WITH ID {random.randint(0, 100)}")
+        logger.info(f"RELEASE CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         os.close(fh)
         return 0
 
