@@ -158,9 +158,9 @@ class DropBoxModel():
         delete a file in the dropbox
         '''
         try:
+            self.dbx.delete("/" + path)
             new_path = os.path.join(self.rootdir, path)
             os.rmdir(new_path)
-            self.dbx.delete("/" + path)
             return 0
         except Exception as e:
             print(e)
@@ -199,14 +199,15 @@ class DropBoxModel():
         rename a file in the dropbox
         '''
         try:
-            old_path = os.path.join(self.rootdir, old)
-            new_path = os.path.join(self.rootdir, new)
-            os.rename(old_path, new_path)
             self.dbx.move("/" + old, "/" + new)
-            return 0
+
         except Exception as e:
-            print(e)
+            logger.warning(f"Error moving file: {e}")
             return -1
+        old_path = os.path.join(self.rootdir, old)
+        new_path = os.path.join(self.rootdir, new)
+        os.rename(old_path, new_path)
+        return 0
     
     def getSpaceUsage(self) -> dict:
         '''
