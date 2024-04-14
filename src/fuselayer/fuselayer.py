@@ -206,6 +206,9 @@ class FuseDropBox(LoggingMixIn, Operations):
         except (FileNotFoundError, dropbox.files.DownloadError) as e:
             logger.error(f"Error opening file: {e}")
             raise FuseOSError(errno.ENOENT)
+        except Exception as e:
+            logger.error(f"Error opening file: {e}")
+            raise FuseOSError(errno.EIO)
         # print(self.metadata)
         return os.open(local_path, flags)
     

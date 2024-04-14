@@ -16,6 +16,7 @@ import dropbox
 from functools import wraps
 from loguru import logger
 import json
+import fcntl
 
 
 def lockWrapper(func):
@@ -107,13 +108,14 @@ class DropBoxModel():
         flush the metadata to the file
         '''
         metadata_file_path = '/tmp/dropbox/metadata.json'
+        logger.warning(f"Ready to flush, metadata: {metadata}")
         with open(metadata_file_path, "w") as f:
-            # fcntl.flock(f, fcntl.LOCK_EX)
-            # try:
-            logger.warning(f"Flushing metadata to file, metadata: {metadata}")
-            json.dump(metadata, f, indent=4)
-            # finally:
-            #     fcntl.flock(f, fcntl.LOCK_UN)
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                logger.warning(f"Flushing metadata to file, metadata: {metadata}")
+                json.dump(metadata, f, indent=4)
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
 
     def flushMetadataAsync(self, metadata:dict):
         '''
@@ -179,7 +181,17 @@ class DropBoxModel():
             return -1
         
     def open_file(self, path, local_path):
-        self.dbx.download(path, local_path)
+        lockfile_path = f"{local_path}.lock"
+        with open(lockfile_path, 'w') as lockfile:
+            try:
+                fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB) # throw an exception if the file is locked
+                self.dbx.download(path, local_path)
+            except BlockingIOError:
+                logger.warning(f"Fail to download")
+                fcntl.flock(lockfile, fcntl.LOCK_EX) # blocked until the file is unlocked
+            finally:
+                if os.path.exists(lockfile_path):
+                    os.remove(lockfile_path)
         
     @lockWrapper
     def move(self, old:str, new:str) -> int:
