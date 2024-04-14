@@ -105,12 +105,7 @@ class DropboxInterface:
         self.dbx.files_delete(path)
 
     def getmetadata(self, path):
-        rc = self.dbx.files_get_metadata(path)
-        ret = {}
-        ret["name"] = rc.name
-        ret["preview_url"] = rc.preview_url
-
-        return ret 
+        return self.dbx.files_get_metadata(path)
     
     def move(self, from_path, to_path):
         self.dbx.files_move(from_path, to_path, autorename=True)
