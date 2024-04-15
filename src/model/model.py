@@ -38,14 +38,7 @@ class DropBoxModel:
         self.mutex = threading.Lock()
         self.local_metadata = {}
         self.local_metadata_file_path = "/tmp/dropbox/metadata.json"
-        self.synchronizeThread = UploadingThread(
-            self.dbx, self.mutex, self.local_metadata
-        )
-        self.downloadingThread = DownloadingThread(self.dbx, self.swapdir, self.rootdir)
-        self.thread = threading.Thread(target=self.synchronizeThread)
-        self.dthread = threading.Thread(target=self.downloadingThread)
-        self.thread.start()
-        self.dthread.start()
+
         self.full_metadata = self.fetchAllMetadata()
 
         if os.path.exists(self.local_metadata_file_path):
@@ -58,6 +51,14 @@ class DropBoxModel:
         for k, v in self.local_metadata.items():
             v["uploaded"] = True
 
+        self.synchronizeThread = UploadingThread(
+            self.dbx, self.mutex, self.local_metadata
+        )
+        self.downloadingThread = DownloadingThread(self.dbx, self.swapdir, self.rootdir)
+        self.thread = threading.Thread(target=self.synchronizeThread)
+        self.dthread = threading.Thread(target=self.downloadingThread)
+        self.thread.start()
+        self.dthread.start()
         print("Model initialized")
         logger.add("/tmp/dropbox/dropbox.log", level="INFO")
 
@@ -263,6 +264,7 @@ class DropBoxModel:
             self.synchronizeThread.addTask(self.rootdir + path, path)
             return 0
         except Exception as e:
+            logger.error(self.local_metadata)
             logger.error(e)
             return -1
 

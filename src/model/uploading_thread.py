@@ -21,6 +21,7 @@ class UploadingThread:
         self.mutex = lock
         self.uploadingQueue = []
         self.metadata = metadata
+        logger.add("/tmp/dropbox/dropbox.log", level="INFO")
 
     def __call__(self):
         """
@@ -58,10 +59,11 @@ class UploadingThread:
             self.mutex.release()
 
         # logger.warning(f"Uploading {len(self.uploadingQueue)} files")
+        successList = []
         while len(self.uploadingQueue) > 0:
             path, file = self.uploadingQueue.pop()
             logger.warning(f"Uploading {path} {file}")
-            successList = []
+
             try:
                 self.dbx.upload(path, file, True)
 
@@ -74,7 +76,8 @@ class UploadingThread:
         self.mutex.acquire()
         try:
             for k in successList:
-                self.metadata[k].uploaded = True
+                self.metadata[k]["uploaded"] = True
+                print(f"metadata of {k} is true", file=sys.stderr)
         except Exception as e:
             # print to stderr
             print(e, file=sys.stderr)
@@ -91,5 +94,6 @@ class UploadingThread:
         """
         # logger.warning(f"Task Added {path} {file}")
         self.outstandingQueue[(path, file)] = time.time()
+        logger.error(self.metadata)
         # change the uploaded metadata to false
-        self.metadata[file].uploaded = False
+        self.metadata[file]["uploaded"] = False
