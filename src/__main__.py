@@ -191,7 +191,7 @@ def stop_daemon():
     except Exception as e:
         print(f"unmount failure：{e}")
     try:
-        shutil.rmtree(mount_point).
+        shutil.rmtree(mount_point)
     except Exception as e:
         print(f"remove mountdir failure：{e}")
     try:
