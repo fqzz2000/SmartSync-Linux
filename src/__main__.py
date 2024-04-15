@@ -133,9 +133,13 @@ def start_daemon(args):
         login_server_process.join()
 
         # setting up dropbox instance
+        # write token to a file
+        with open(os.path.join(config.TMP_DIR, "auth_token.txt"), "w") as file:
+            file.write(auth_token)
         os.environ["MY_APP_AUTH_TOKEN"] = auth_token
     # print("Start setting up your dropbox...")
-
+    else:
+        print("Test mode enabled")
     # start daemon
 
     context = daemon.DaemonContext(
