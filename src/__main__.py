@@ -133,9 +133,9 @@ def start_daemon():
     )
     with context:
         auth_token = os.getenv('MY_APP_AUTH_TOKEN')
-        # data = {
-        #     'token': auth_token
-        # }
+        data = {
+            'token': auth_token
+        }
         db = DropboxInterface(auth_token)
         model = DropBoxModel(db, rootdir, swapdir)
         # model.clearAll()
