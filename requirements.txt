@@ -10,3 +10,4 @@ requests==2.22.0
 SecretStorage==2.3.1
 simplejson==3.16.0
 tqdm==4.66.2
+tzlocal==5.2
