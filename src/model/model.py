@@ -149,7 +149,7 @@ class DropBoxModel():
         flushThread = threading.Thread(target=self.flushMetadata, args=(metadata,))
         flushThread.start()
 
-    @lockWrapper
+
     def getattr(self, path:str):
         local_path = os.path.join(self.rootdir, path.lstrip('/'))
         now = time.time()
@@ -204,8 +204,7 @@ class DropBoxModel():
                 'st_size': remote_metadata['size'] if remote_metadata['size'] is not None else 0,
             }
         raise OSError(errno.ENOENT, "No such file or directory")    
-    
-    @lockWrapper
+
     def readdir(self, path:str):
         remote_metadata = self.full_metadata
 
@@ -335,6 +334,7 @@ class DropBoxModel():
 
     @lockWrapper
     def open_file(self, path, local_path, flags):
+        logger.info(f"Opening {path}")
         try: 
             # remote_metadata = self.fetchOneMetadata(path)
             # remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
@@ -368,8 +368,8 @@ class DropBoxModel():
             return -1
         return os.open(local_path, flags)
 
-    @lockWrapper
     def download_file(self, path, local_path):
+        logger.info(f"downloading {path}")
         lockfile_path = f"{local_path}.lock"
         with open(lockfile_path, 'w') as lockfile:
             try:
@@ -380,6 +380,7 @@ class DropBoxModel():
             finally:
                 if os.path.exists(lockfile_path):
                     os.remove(lockfile_path)
+        logger.info(f"finish downloading {path}")
         
     @lockWrapper
     def move(self, old:str, new:str) -> int:
