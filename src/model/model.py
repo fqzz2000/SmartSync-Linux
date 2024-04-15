@@ -282,7 +282,7 @@ class DropBoxModel:
                 "name": dir_name,
                 "size": 4096,
                 "type": "folder",
-                "mtime": time.time,
+                "mtime": time.time(),
                 "uploaded": True,
             }
             self.local_metadata["/" + path] = new_file_metadata
