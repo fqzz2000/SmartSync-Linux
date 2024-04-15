@@ -189,12 +189,13 @@ def start_daemon(args):
             sys.exit(1)
 
 
-def stop_daemon():
+def stop_daemon(args):
     if os.path.exists(pid_file):
         with open(pid_file, "r") as file:
             pid = file.read().strip()
             pid = int(pid)
     mount_point = os.path.join(WORKING_DIR, "dropbox")
+
     try:
 
         subprocess.run(["umount", mount_point], check=True)
@@ -239,4 +240,4 @@ if __name__ == "__main__":
     if args.command is None:
         parser.print_help()
     else:
-        args.func()
+        args.func(args)
