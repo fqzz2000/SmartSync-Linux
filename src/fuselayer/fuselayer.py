@@ -2,18 +2,11 @@
 # the fuse interaction layer
 import random
 from src.lib import FUSE, LoggingMixIn, Operations, FuseOSError
-from src.data.data import DropboxInterface
 import logging
 import errno
-from stat import S_IFDIR, S_IFLNK, S_IFREG
 import errno
-from collections import defaultdict
 import os
 from loguru import logger
-import json
-import time
-from datetime import datetime
-
 
 class FuseDropBox(LoggingMixIn, Operations):
     "Example memory filesystem. Supports only one level of files."

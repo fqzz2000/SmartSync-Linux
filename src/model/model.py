@@ -1,15 +1,11 @@
 # commandline interface for the program
-from collections import deque
-import sys
 import threading
 import time
 from src.data.data import DropboxInterface
 from src.model.uploading_thread import UploadingThread
 from src.model.downloading_thread import DownloadingThread
 from src.fuselayer.fuselayer import FuseDropBox
-from src.lib import FUSE
 import os
-import shutil
 from zoneinfo import ZoneInfo  # Python 3.9+
 from tzlocal import get_localzone
 import dropbox
@@ -97,7 +93,6 @@ class DropBoxModel():
         try:
             files,_ = self.dbx.list_folder(list_folder_path)
             return self.formatMetadata(files)
-
         except Exception as e:
             logger.error(e)
             return None
@@ -167,8 +162,9 @@ class DropBoxModel():
         }
         if path == "/":
             return {'st_mode': (S_IFDIR | 0o755), **default_attrs}
-        remote_metadata = self.fetchOneMetadata(path)
-        remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
+        # remote_metadata = self.fetchOneMetadata(path)
+        # remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
+        remote_metadata = self.full_metadata.get(path)
         if path in self.local_metadata:
             local_v = self.local_metadata[path]
             ret = os.stat(local_path) if os.path.exists(local_path) else default_attrs
@@ -211,7 +207,7 @@ class DropBoxModel():
     
     @lockWrapper
     def readdir(self, path:str):
-        remote_metadata = self.fetchDirMetadata(path)
+        remote_metadata = self.full_metadata
 
         local_path = os.path.join(self.rootdir, path.lstrip('/'))
         if not os.path.exists(local_path):
@@ -224,10 +220,10 @@ class DropBoxModel():
                 direntries.append(m_name)
         if remote_metadata is not None:
             for m_path in remote_metadata.keys():
-                # if os.path.dirname(m_path.lstrip('/')) == path.lstrip('/'):
-                m_name = remote_metadata[m_path]["name"]
-                if m_name not in direntries:
-                    direntries.append(m_name)
+                if os.path.dirname(m_path.lstrip('/')) == path.lstrip('/'):
+                    m_name = remote_metadata[m_path]["name"]
+                    if m_name not in direntries:
+                        direntries.append(m_name)
         return direntries
 
     @lockWrapper
@@ -340,8 +336,9 @@ class DropBoxModel():
     @lockWrapper
     def open_file(self, path, local_path, flags):
         try: 
-            remote_metadata = self.fetchOneMetadata(path)
-            remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
+            # remote_metadata = self.fetchOneMetadata(path)
+            # remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
+            remote_metadata = self.full_metadata.get(path)
             if remote_metadata is None:
                 return -1
             if not os.path.exists(local_path):
@@ -360,7 +357,7 @@ class DropBoxModel():
                     if rmt > lct:
                         # self.metadata[path] = metadata_from_db[path]
                         # self.metadata[path] = remote_metadata
-                        self.open_file(path, local_path)
+                        self.download_file(path, local_path)
                         self.local_metadata[path] = remote_metadata
                         self.flushMetadataAsync(self.local_metadata)
         except FileNotFoundError as e:
@@ -423,7 +420,8 @@ class DropBoxModel():
                         self.local_metadata[new_key] = self.local_metadata.pop(key)
                         self.local_metadata[new_key]["mtime"] = time.time()
             else:
-                remote_metadata = self.fetchOneMetadata("/" + new)
+                # remote_metadata = self.fetchOneMetadata("/" + new)
+                remote_metadata = self.full_metadata.get("/" + new)
                 if remote_metadata is not None:
                     self.local_metadata["/" + new] = remote_metadata.get("/" + new)
             self.flushMetadataAsync(self.local_metadata)
