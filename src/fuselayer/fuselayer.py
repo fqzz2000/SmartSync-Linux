@@ -38,7 +38,10 @@ class FuseDropBox(LoggingMixIn, Operations):
     def create(self, path, mode):
         # logger.info(f"CREATE CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         logger.info(f"CREATE CALLED, path: {path}")
-        return self.db.createFile(path, mode)
+        ret = self.db.createFile(path, mode)
+        if ret == -1:
+            raise FuseOSError(errno.ENOENT)
+        return ret
 
     def getattr(self, path, fh=None):
         logger.info(f"GETATTR CALLED, path: {path}")
@@ -80,7 +83,8 @@ class FuseDropBox(LoggingMixIn, Operations):
     def mkdir(self, path, mode):
         logger.info(f"MKDIR CALLED, path: {path}")
         # logger.info(f"MKDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
-        self.db.createFolder(path, mode)
+        if self.db.createFolder(path.lstrip("/"), mode) == -1:
+            raise FuseOSError(errno.ENOENT)
 
     def open(self, path, flags):
         logger.info(f"OPEN CALLED, path: {path}")
@@ -188,6 +192,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         # logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if self.db.deleteFile(path.lstrip("/")) == -1:
             raise FuseOSError(errno.ENOENT)
+        
 
     def utimens(self, path, times=None):
         logger.info(f"UTIMENS CALLED, path: {path}")

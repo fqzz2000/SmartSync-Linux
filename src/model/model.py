@@ -148,9 +148,10 @@ class DropBoxModel:
                 logger.warning(f"Flushing metadata to file, metadata: {metadata}")
                 self.mutex.acquire()
                 json.dump(metadata, f, indent=4)
-                self.mutex.release()
             finally:
+                self.mutex.release()
                 fcntl.flock(f, fcntl.LOCK_UN)
+
 
     def flushMetadataAsync(self, metadata: dict):
         """
@@ -274,37 +275,44 @@ class DropBoxModel:
         create a folder in the dropbox
         """
         # create remotely
-        self.dbx.mkdir("/" + path)
-        # create locally
-        new_path = os.path.join(self.rootdir, path)
-        os.mkdir(new_path, mode)
-        dir_name = os.path.basename("/" + path)
-        new_file_metadata = {
-            "name": dir_name,
-            "size": 0,
-            "type": "folder",
-            "mtime": None,
-            "uploaded": True,
-        }
-        self.local_metadata["/" + path] = new_file_metadata
-        self.flushMetadataAsync(self.local_metadata)
+        try:
+            self.dbx.mkdir("/" + path)
+            # create locally
+            new_path = os.path.join(self.rootdir, path)
+            os.mkdir(new_path, mode)
+            dir_name = os.path.basename("/" + path)
+            new_file_metadata = {
+                "name": dir_name,
+                "size": 0,
+                "type": "folder",
+                "mtime": None,
+                "uploaded": True,
+            }
+            self.local_metadata["/" + path] = new_file_metadata
+            self.flushMetadataAsync(self.local_metadata)
+        except Exception as e:
+            logger.error(e)
+            return -1
         return 0
 
     @lockWrapper
     def createFile(self, path: str, mode) -> int:
-        local_path = os.path.join(self.rootdir, path.lstrip("/"))
-        ret = os.open(local_path, os.O_CREAT | os.O_WRONLY, mode)
-        file_name = os.path.basename(path)
-        new_file_metadata = {
-            "name": file_name,
-            "size": 0,
-            "type": "file",
-            "mtime": time.time(),
-            "uploaded": False,
-        }
-        self.local_metadata[path] = new_file_metadata
-        self.flushMetadataAsync(self.local_metadata)
-
+        try: 
+            local_path = os.path.join(self.rootdir, path.lstrip("/"))
+            ret = os.open(local_path, os.O_CREAT | os.O_WRONLY, mode)
+            file_name = os.path.basename(path)
+            new_file_metadata = {
+                "name": file_name,
+                "size": 0,
+                "type": "file",
+                "mtime": time.time(),
+                "uploaded": False,
+            }
+            self.local_metadata[path] = new_file_metadata
+            self.flushMetadataAsync(self.local_metadata)
+        except Exception as e:
+            logger.error(e)
+            return -1
         # print(f"create, current metatdata {self.metadata}")
         return ret
 
@@ -334,7 +342,11 @@ class DropBoxModel:
 
             for key in keys_to_delete:
                 self.local_metadata.pop(key)
-            self.flushMetadataAsync(self.local_metadata)
+            try:
+                self.flushMetadataAsync(self.local_metadata)
+            except Exception as e:
+                logger.error(e)
+                return -1
         return 0
 
     @lockWrapper
@@ -361,8 +373,11 @@ class DropBoxModel:
             # update metadata
             if path in self.local_metadata:
                 self.local_metadata.pop("/" + path)
-            self.flushMetadataAsync(self.local_metadata)
-
+            try:
+                self.flushMetadataAsync(self.local_metadata)
+            except Exception as e:
+                logger.error(e)
+                return -1
         return 0
 
     @lockWrapper
@@ -400,7 +415,12 @@ class DropBoxModel:
         except Exception as e:
             logger.error(f"Error opening file: {e}")
             return -1
-        return os.open(local_path, flags)
+        try:
+            ret =  os.open(local_path, flags)
+            return ret
+        except Exception as e:
+            logger.error(f"Error opening file: {e}")
+            return -1
 
     def download_file(self, path, local_path):
         logger.info(f"downloading {path}")
@@ -444,31 +464,35 @@ class DropBoxModel:
                 logger.error(f"Error moving file: {e}")
                 return -1
             # metadata update
-            if old in self.local_metadata:
-                m_type = self.local_metadata[old]["type"]
-                self.local_metadata[new] = self.metadata.pop("/" + old)
-                self.local_metadata[new]["name"] = os.path.basename(new_path)
-                self.local_metadata[new]["mtime"] = time.time()
+            try:
+                if old in self.local_metadata:
+                    m_type = self.local_metadata[old]["type"]
+                    self.local_metadata[new] = self.metadata.pop("/" + old)
+                    self.local_metadata[new]["name"] = os.path.basename(new_path)
+                    self.local_metadata[new]["mtime"] = time.time()
 
-                if m_type == "folder":
-                    old_prefix = old + "/"
-                    new_prefix = new + "/"
-                    keys_to_update = [
-                        k
-                        for k in self.local_metadata.keys()
-                        if k.startswith(old_prefix)
-                    ]
-                    for key in keys_to_update:
-                        new_key = new_prefix + key[len(old_prefix) :]
-                        self.local_metadata[new_key] = self.local_metadata.pop(key)
-                        self.local_metadata[new_key]["mtime"] = time.time()
+                    if m_type == "folder":
+                        old_prefix = old + "/"
+                        new_prefix = new + "/"
+                        keys_to_update = [
+                            k
+                            for k in self.local_metadata.keys()
+                            if k.startswith(old_prefix)
+                        ]
+                        for key in keys_to_update:
+                            new_key = new_prefix + key[len(old_prefix) :]
+                            self.local_metadata[new_key] = self.local_metadata.pop(key)
+                            self.local_metadata[new_key]["mtime"] = time.time()
 
-            else:
-                # remote_metadata = self.fetchOneMetadata("/" + new)
-                remote_metadata = self.full_metadata.get("/" + new)
-                if remote_metadata is not None:
-                    self.local_metadata["/" + new] = remote_metadata.get("/" + new)
-            self.flushMetadataAsync(self.local_metadata)
+                else:
+                    # remote_metadata = self.fetchOneMetadata("/" + new)
+                    remote_metadata = self.full_metadata.get("/" + new)
+                    if remote_metadata is not None:
+                        self.local_metadata["/" + new] = remote_metadata.get("/" + new)
+                self.flushMetadataAsync(self.local_metadata)
+            except Exception as e:
+                logger.error(f"Error moving file: {e}")
+                return -1
         return 0
 
     def getSpaceUsage(self) -> dict:
