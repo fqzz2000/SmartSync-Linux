@@ -115,21 +115,21 @@ class DropBoxModel:
             if isinstance(v, dropbox.files.FileMetadata):
                 mtime = max(v.client_modified, v.server_modified)
                 utc_time = mtime.replace(tzinfo=ZoneInfo("UTC"))
-                local_time = utc_time.astimezone(local_zone)
+                # local_time = utc_time.astimezone(local_zone)
 
                 metadata[v.path_display] = {
                     "name": v.name,
                     "size": v.size,
                     "type": "file",
-                    "mtime": local_time.isoformat(),
+                    "mtime": utc_time.timestamp(),
                     "uploaded": True,
                 }
             elif isinstance(v, dropbox.files.FolderMetadata):
                 metadata[v.path_display] = {
                     "name": v.name,
-                    "size": None,
+                    "size": 4096,
                     "type": "folder",
-                    "mtime": None,
+                    "mtime": time.time(),
                     "uploaded": True,
                 }
 
@@ -151,7 +151,6 @@ class DropBoxModel:
             finally:
                 self.mutex.release()
                 fcntl.flock(f, fcntl.LOCK_UN)
-
 
     def flushMetadataAsync(self, metadata: dict):
         """
@@ -191,17 +190,17 @@ class DropBoxModel:
                     "st_uid": ret.st_uid,
                 }
             elif remote_metadata and remote_metadata.get("type") == "file":
-                lct = datetime.fromisoformat(local_v["mtime"])
-                rmt = datetime.fromisoformat(remote_metadata["mtime"])
+                lct = local_v["mtime"]
+                rmt = remote_metadata["mtime"]
                 if lct > rmt:
                     return {
                         **ret,
-                        "st_mtime": lct.timestamp(),  # Assume lct is datetime object
+                        "st_mtime": lct,  # Assume lct is datetime object
                     }
                 else:
                     return {
                         **default_attrs,
-                        "st_mtime": rmt.timestamp(),  # Assume rmt is datetime object
+                        "st_mtime": rmt,  # Assume rmt is datetime object
                         "st_size": remote_metadata["size"],
                         "st_mode": (S_IFREG | 0o644),
                     }
@@ -211,9 +210,7 @@ class DropBoxModel:
                 "st_mtime": (
                     int(now)
                     if remote_metadata["type"] == "folder"
-                    else int(
-                        datetime.fromisoformat(remote_metadata["mtime"]).timestamp()
-                    )
+                    else int(remote_metadata["mtime"])
                 ),
                 "st_mode": (
                     (S_IFDIR | 0o755)
@@ -283,9 +280,9 @@ class DropBoxModel:
             dir_name = os.path.basename("/" + path)
             new_file_metadata = {
                 "name": dir_name,
-                "size": 0,
+                "size": 4096,
                 "type": "folder",
-                "mtime": None,
+                "mtime": time.time,
                 "uploaded": True,
             }
             self.local_metadata["/" + path] = new_file_metadata
@@ -297,7 +294,7 @@ class DropBoxModel:
 
     @lockWrapper
     def createFile(self, path: str, mode) -> int:
-        try: 
+        try:
             local_path = os.path.join(self.rootdir, path.lstrip("/"))
             ret = os.open(local_path, os.O_CREAT | os.O_WRONLY, mode)
             file_name = os.path.basename(path)
@@ -401,8 +398,8 @@ class DropBoxModel:
                     # db_v = metadata_from_db.get(path)
                     # if db_v is None:
                     #     raise FuseOSError(errno.ENOENT)
-                    lct = datetime.fromisoformat(local_v["mtime"])
-                    rmt = datetime.fromisoformat(remote_metadata["mtime"])
+                    lct = local_v["mtime"]
+                    rmt = remote_metadata["mtime"]
                     if rmt > lct:
                         # self.metadata[path] = metadata_from_db[path]
                         # self.metadata[path] = remote_metadata
@@ -416,7 +413,7 @@ class DropBoxModel:
             logger.error(f"Error opening file: {e}")
             return -1
         try:
-            ret =  os.open(local_path, flags)
+            ret = os.open(local_path, flags)
             return ret
         except Exception as e:
             logger.error(f"Error opening file: {e}")

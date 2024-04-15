@@ -1,6 +1,15 @@
 import os
+import subprocess
 import time
 import pytest
+
+import os
+import sys
+
+# add src to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+print(sys.path)
+
 from unittest.mock import patch, Mock
 from src.data.data import DropboxInterface
 from src.utils.utils import FileInfo
@@ -28,23 +37,41 @@ class TestDropBox:
         # cleanup the directory
         shutil.rmtree(self.dropboxpath, ignore_errors=True)
         # start dropbox daemon
-        os.system("python3 -m src start -t")
+        self.process = subprocess.Popen(
+            ["bash"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.process.stdin.write("python3 -m src start -t\n")
+        self.process.stdin.flush()
+        print("Dropbox started")
         # get the auth token
         self.auth_token = os.getenv("MY_APP_AUTH_TOKEN")
         # create a dropbox instance
         self.dropbox = DropboxInterface(self.auth_token)
         yield
         # cleanup all files and directories created during testing
-        os.system("python3 -m src stop")
+        self.process.stdin.write("python3 -m src stop\n")
+        self.process.stdin.flush()
         shutil.rmtree(self.dropboxpath, ignore_errors=True)
 
     def test_write_rm_file(self):
         # upload a file
-        os.system(f"echo 'hello' > {self.dropboxpath}/testfile.txt")
-        time.sleep(7)
+
+        self.process.stdin.write(f"echo 'hello' > {self.dropboxpath}/testfile.txt\n")
+        self.process.stdin.flush()
+        time.sleep(10)
         res, _ = self.dropbox.list_folder("")
+        print(res)
         assert len(res) == 1
         # remove the file
-        os.system(f"rm {self.dropboxpath}/testfile.txt")
+        self.process.stdin.write(f"rm {self.dropboxpath}/testfile.txt\n")
         time.sleep(1)
         res = self.dropbox.list_folder("")
+        assert len(res) == 0
+
+
+if __name__ == "__main__":
+    pass
