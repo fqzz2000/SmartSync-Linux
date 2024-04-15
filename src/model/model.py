@@ -18,6 +18,9 @@ from loguru import logger
 import json
 import fcntl
 from datetime import datetime
+from stat import S_IFDIR, S_IFREG
+import errno
+
 
 def lockWrapper(func):
     @wraps(func)
@@ -42,15 +45,16 @@ class DropBoxModel():
         self.dthread = threading.Thread(target=self.downloadingThread)
         self.thread.start()
         self.dthread.start()
-        self.metadata = {}
-        self.metadata_file_path = '/tmp/dropbox/metadata.json'
-        if os.path.exists(self.metadata_file_path):
-            with open(self.metadata_file_path, 'r') as f:
+        self.full_metadata = self.fetchAllMetadata()
+        self.local_metadata = {}
+        self.local_metadata_file_path = '/tmp/dropbox/metadata.json'
+        if os.path.exists(self.local_metadata_file_path):
+            with open(self.local_metadata_file_path, 'r') as f:
                 try:
-                    self.metadata = json.load(f)
+                    self.local_metadata = json.load(f)
                 except Exception as e:
                     logger.error(f"Error loading metadata from file: {e}")
-        for k, v in self.metadata.items():
+        for k, v in self.local_metadata.items():
             v['uploaded'] = True
         print("Model initialized")
 
@@ -59,6 +63,21 @@ class DropBoxModel():
         self.downloadingThread.stop()
         self.thread.join()
 
+    @lockWrapper
+    def updateFullMetadata(self):
+        self.full_metadata = self.fetchAllMetadata()
+
+    def fetchAllMetadata(self):
+        """
+        List all files and folders in the Dropbox and save their metadata to a file in JSON format.
+        """
+        try:
+            files,_ = self.dbx.list_folder("", recursive=True)
+            return self.formatMetadata(files)
+        except Exception as e:
+            print(e)
+            return None
+        
     def fetchOneMetadata(self, path:str) -> dict:
         '''
         get the metadata of the file
@@ -117,9 +136,8 @@ class DropBoxModel():
         '''
         flush the metadata to the file
         '''
-        metadata_file_path = '/tmp/dropbox/metadata.json'
         logger.warning(f"Ready to flush, metadata: {metadata}")
-        with open(metadata_file_path, "w") as f:
+        with open(self.local_metadata_file_path, "w") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 logger.warning(f"Flushing metadata to file, metadata: {metadata}")
@@ -137,13 +155,89 @@ class DropBoxModel():
         flushThread.start()
 
     @lockWrapper
+    def getattr(self, path:str):
+        local_path = os.path.join(self.rootdir, path.lstrip('/'))
+        now = time.time()
+        default_attrs = {
+            'st_atime': now,
+            'st_ctime': now,
+            'st_mtime': now,
+            'st_gid': os.getgid(),
+            'st_uid': os.getuid(),
+        }
+        if path == "/":
+            return {'st_mode': (S_IFDIR | 0o755), **default_attrs}
+        remote_metadata = self.fetchOneMetadata(path)
+        remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
+        if path in self.local_metadata:
+            local_v = self.local_metadata[path]
+            ret = os.stat(local_path) if os.path.exists(local_path) else default_attrs
+
+            if not local_v['uploaded']:
+                return {
+                    "st_atime": ret.st_atime,
+                    "st_ctime": ret.st_ctime,
+                    "st_gid": ret.st_gid,
+                    "st_mode": ret.st_mode,
+                    "st_mtime": ret.st_mtime,
+                    "st_nlink": ret.st_nlink,
+                    "st_size": ret.st_size,
+                    "st_uid": ret.st_uid,
+                }
+            elif remote_metadata and remote_metadata.get("type") == "file":
+                lct = datetime.fromisoformat(local_v["mtime"])
+                rmt = datetime.fromisoformat(remote_metadata["mtime"])
+                if lct > rmt:
+                    return {
+                        **ret,
+                        "st_mtime": lct.timestamp(),  # Assume lct is datetime object
+                    }
+                else:
+                    return {
+                        **default_attrs,
+                        "st_mtime": rmt.timestamp(),  # Assume rmt is datetime object
+                        "st_size": remote_metadata['size'],
+                        'st_mode': (S_IFREG | 0o644),
+                    }
+        if remote_metadata is not None:
+            return {
+                **default_attrs,
+                "st_mtime": int(now) if remote_metadata['type'] == 'folder' else int(datetime.fromisoformat(remote_metadata["mtime"]).timestamp()),
+                'st_mode': (S_IFDIR | 0o755) if remote_metadata["type"] == "folder" else (S_IFREG | 0o644),
+                'st_nlink': 2 if remote_metadata["type"] == "folder" else 1,
+                'st_size': remote_metadata['size'] if remote_metadata['size'] is not None else 0,
+            }
+        raise OSError(errno.ENOENT, "No such file or directory")    
+    
+    @lockWrapper
+    def readdir(self, path:str):
+        remote_metadata = self.fetchDirMetadata(path)
+
+        local_path = os.path.join(self.rootdir, path.lstrip('/'))
+        if not os.path.exists(local_path):
+            os.makedirs(local_path, exist_ok=True)
+        
+        direntries = ['.', '..']
+        for local_key in list(self.local_metadata.keys()):
+            if not self.local_metadata[local_key]["uploaded"]: # False if file hasn't been uploaded
+                m_name = self.local_metadata[local_key]["name"]
+                direntries.append(m_name)
+        if remote_metadata is not None:
+            for m_path in remote_metadata.keys():
+                # if os.path.dirname(m_path.lstrip('/')) == path.lstrip('/'):
+                m_name = remote_metadata[m_path]["name"]
+                if m_name not in direntries:
+                    direntries.append(m_name)
+        return direntries
+
+    @lockWrapper
     def write(self, path:str, new_size) -> int:
         '''
         upload the file to dropbox
         '''
         # self.metadata[path]["uploaded"] = False
-        self.metadata[path]["size"] = new_size
-        self.metadata[path]["mtime"] = time.time()
+        self.local_metadata[path]["size"] = new_size
+        self.local_metadata[path]["mtime"] = time.time()
         if len(path) == 0 or path[0] != "/":
             path = "/" + path
         try:
@@ -171,8 +265,8 @@ class DropBoxModel():
             "mtime": None,
             "uploaded": True
         }
-        self.metadata["/" + path] = new_file_metadata
-        self.flushMetadataAsync(self.metadata)
+        self.local_metadata["/" + path] = new_file_metadata
+        self.flushMetadataAsync(self.local_metadata)
         return 0
     
     @lockWrapper
@@ -187,8 +281,8 @@ class DropBoxModel():
             "mtime": time.time(),
             "uploaded": False
             }
-        self.metadata[path] = new_file_metadata
-        self.flushMetadataAsync(self.metadata)
+        self.local_metadata[path] = new_file_metadata
+        self.flushMetadataAsync(self.local_metadata)
         # print(f"create, current metatdata {self.metadata}")
         return ret
     
@@ -212,10 +306,10 @@ class DropBoxModel():
                 logger.error(e)
                 return -1
             # update metadata
-            keys_to_delete = [k for k in self.metadata.keys() if k.startswith("/" + path)]
+            keys_to_delete = [k for k in self.local_metadata.keys() if k.startswith("/" + path)]
             for key in keys_to_delete:
-                self.metadata.pop(key)
-            self.flushMetadataAsync(self.metadata)
+                self.local_metadata.pop(key)
+            self.flushMetadataAsync(self.local_metadata)
         return 0
         
     @lockWrapper
@@ -238,9 +332,9 @@ class DropBoxModel():
                 logger.error(e)
                 return -1
             # update metadata
-            if path in self.metadata:
-                self.metadata.pop("/" + path)
-            self.flushMetadataAsync(self.metadata)
+            if path in self.local_metadata:
+                self.local_metadata.pop("/" + path)
+            self.flushMetadataAsync(self.local_metadata)
         return 0
 
     @lockWrapper
@@ -252,11 +346,11 @@ class DropBoxModel():
                 return -1
             if not os.path.exists(local_path):
                 self.download_file(path, local_path) # trigger download
-                self.metadata[path] = remote_metadata
-                self.flushMetadataAsync(self.metadata)
+                self.local_metadata[path] = remote_metadata
+                self.flushMetadataAsync(self.local_metadata)
                 # self.metadata[path] = metadata_from_db[path]
             else:
-                local_v = self.metadata[path]
+                local_v = self.local_metadata[path]
                 if local_v["uploaded"]:
                     # db_v = metadata_from_db.get(path)
                     # if db_v is None:
@@ -266,16 +360,15 @@ class DropBoxModel():
                     if rmt > lct:
                         # self.metadata[path] = metadata_from_db[path]
                         # self.metadata[path] = remote_metadata
-                        self.db.open_file(path, local_path)
-                        self.metadata[path] = remote_metadata
-                        self.db.flushMetadataAsync(self.metadata)
-        except (FileNotFoundError, dropbox.files.DownloadError) as e:
+                        self.open_file(path, local_path)
+                        self.local_metadata[path] = remote_metadata
+                        self.flushMetadataAsync(self.local_metadata)
+        except FileNotFoundError as e:
             logger.error(f"Error opening file: {e}")
             return -1
         except Exception as e:
             logger.error(f"Error opening file: {e}")
             return -1
-        # print(self.metadata)
         return os.open(local_path, flags)
 
     @lockWrapper
@@ -315,25 +408,25 @@ class DropBoxModel():
                 logger.error(f"Error moving file: {e}")
                 return -1
             # metadata update
-            if old in self.metadata:
-                m_type = self.metadata[old]["type"]
-                self.metadata[new] = self.metadata.pop("/" + old)
-                self.metadata[new]["name"] = os.path.basename(new_path)
-                self.metadata[new]["mtime"] = time.time()
+            if old in self.local_metadata:
+                m_type = self.local_metadata[old]["type"]
+                self.local_metadata[new] = self.metadata.pop("/" + old)
+                self.local_metadata[new]["name"] = os.path.basename(new_path)
+                self.local_metadata[new]["mtime"] = time.time()
                 
                 if m_type == "folder":
                     old_prefix = old + '/'
                     new_prefix = new + '/'
-                    keys_to_update = [k for k in self.metadata.keys() if k.startswith(old_prefix)]
+                    keys_to_update = [k for k in self.local_metadata.keys() if k.startswith(old_prefix)]
                     for key in keys_to_update:
                         new_key = new_prefix + key[len(old_prefix):]
-                        self.metadata[new_key] = self.metadata.pop(key)
-                        self.metadata[new_key]["mtime"] = time.time()
+                        self.local_metadata[new_key] = self.local_metadata.pop(key)
+                        self.local_metadata[new_key]["mtime"] = time.time()
             else:
                 remote_metadata = self.fetchOneMetadata("/" + new)
                 if remote_metadata is not None:
-                    self.metadata["/" + new] = remote_metadata.get("/" + new)
-            self.flushMetadataAsync(self.metadata)
+                    self.local_metadata["/" + new] = remote_metadata.get("/" + new)
+            self.flushMetadataAsync(self.local_metadata)
         return 0
     
     def getSpaceUsage(self) -> dict:
@@ -345,26 +438,6 @@ class DropBoxModel():
         except Exception as e:
             logger.error(e)
             return None
-
-    # def fetchAllMetadata(self):
-    #     """
-    #     List all files and folders in the Dropbox and save their metadata to a file in JSON format.
-    #     """
-    #     # metadata = {}
-    #     # metadata_file_path = '/tmp/dropbox/metadata.json'
-    #     # local_zone = ZoneInfo.localzone()
-    #     # local_zone = get_localzone()
-    #     try:
-    #         files,_ = self.dbx.list_folder("", recursive=True)
-    #         return self.formatMetadata(files)
-    #         # with open(metadata_file_path, "w") as f:
-    #         #     json.dump(data_to_save, f, indent=4)
-    #         # print(data_to_save)
-    #         # return data_to_save 
-        
-    #     except Exception as e:
-    #         print(e)
-    #         return None
 
     # def triggerDownload(self):
     #     self.downloadingThread.addTask()
