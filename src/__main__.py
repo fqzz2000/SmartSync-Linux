@@ -178,23 +178,31 @@ def start_daemon():
     
     
 def stop_daemon():
+    if os.path.exists(pid_file):
+        with open(pid_file, 'r') as file:
+            pid = file.read().strip()
+            pid = int(pid)
+    mount_point = os.path.join(WORKING_DIR, "dropbox")
     try:
-        if os.path.exists(pid_file):
-            with open(pid_file, 'r') as file:
-                pid = file.read().strip()
-                pid = int(pid)
-        mount_point = os.path.join(WORKING_DIR, "dropbox")
+
         subprocess.run(['umount', mount_point], check=True)
-        shutil.rmtree(mount_point)
-        os.kill(pid, signal.SIGKILL)
-        if os.path.exists(pid_file):
-            os.unlink(pid_file)
         # rootdir = os.path.join(WORKING_DIR, ".cache")
         # shutil.rmtree(rootdir)
-    except subprocess.CalledProcessError as e:
-        print(f"unmount failure：{e}")
     except Exception as e:
-        print(f"ERROR：{e}")
+        print(f"unmount failure：{e}")
+    try:
+        shutil.rmtree(mount_point).
+    except Exception as e:
+        print(f"remove mountdir failure：{e}")
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except Exception as e:
+        print(f"kill process failure：{e}")
+    try:
+        if os.path.exists(pid_file):
+            os.unlink(pid_file)
+    except Exception as e:
+        print(f"remove pid file failure：{e}")
     
 
 if __name__ == "__main__":
