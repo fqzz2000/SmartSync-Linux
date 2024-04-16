@@ -282,11 +282,11 @@ class DropBoxModel:
                 return False
 
         remote_metadata = self.full_metadata
-        print("full: ", self.full_metadata)
+        # print("full: ", self.full_metadata)
         local_path = os.path.join(self.rootdir, path.lstrip("/"))
         if not os.path.exists(local_path):
             os.makedirs(local_path, exist_ok=True)
-        print(self.local_metadata)
+        # print(self.local_metadata)
         direntries = [".", ".."]
         for local_key in list(self.local_metadata.keys()):
             if not is_direct_subpath(path, local_key):
