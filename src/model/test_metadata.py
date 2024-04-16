@@ -104,6 +104,78 @@ class TestMetadataContainer(unittest.TestCase):
         with self.assertRaises(KeyError):
             del self.container[path]
 
+    def test_items(self):
+        # Test retrieving items from the container
+        path1 = "/path/to/file1.txt"
+        path2 = "/path/to/file2.txt"
+        metadata1 = {"name": "file1.txt", "size": 100}
+        metadata2 = {"name": "file2.txt", "size": 200}
+        self.container.path_to_id[path1] = "id1"
+        self.container.path_to_id[path2] = "id2"
+        self.container.id_metadata["id1"] = metadata1
+        self.container.id_metadata["id2"] = metadata2
+
+        result = self.container.items()
+
+        self.assertEqual(result, [(path1, metadata1), (path2, metadata2)])
+
+    def test_pop(self):
+        # Test popping metadata of an existing path
+        path = "/path/to/file.txt"
+        id = "id"
+        metadata = {"name": "file.txt", "size": 100}
+        self.container.path_to_id[path] = id
+        self.container.id_metadata[id] = metadata
+
+        result = self.container.pop(path)
+
+        self.assertNotIn(path, self.container.path_to_id)
+        self.assertNotIn(id, self.container.id_metadata)
+        self.assertEqual(result, metadata)
+
+    def test_pop_nonexistent_path(self):
+        # Test popping metadata of a nonexistent path
+        path = "/path/to/nonexistent.txt"
+
+        result = self.container.pop(path)
+
+        self.assertIsNone(result)
+
+    def test_get(self):
+        # Test getting metadata of an existing path with default value
+        path = "/path/to/file.txt"
+        metadata = {"name": "file.txt", "size": 100}
+        self.container.path_to_id[path] = "id"
+        self.container.id_metadata["id"] = metadata
+
+        result = self.container.get(path, default=None)
+
+        self.assertEqual(result, metadata)
+
+    def test_get_nonexistent_path(self):
+        # Test getting metadata of a nonexistent path with default value
+        path = "/path/to/nonexistent.txt"
+        default = {"name": "default.txt", "size": 0}
+
+        result = self.container.get(path, default=default)
+
+        self.assertEqual(result, default)
+
+    def test_keys(self):
+        # Test retrieving keys from the container
+        path1 = "/path/to/file1.txt"
+        path2 = "/path/to/file2.txt"
+        metadata1 = {"name": "file1.txt", "size": 100}
+        metadata2 = {"name": "file2.txt", "size": 200}
+        self.container.path_to_id[path1] = "id1"
+        self.container.path_to_id[path2] = "id2"
+        self.container.id_metadata["id1"] = metadata1
+        self.container.id_metadata["id2"] = metadata2
+
+        result = self.container.keys()
+
+        self.assertEqual(result, {path1, path2})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,6 +18,8 @@ from datetime import datetime
 from stat import S_IFDIR, S_IFREG
 import errno
 from pathlib import Path
+import pickle
+from src.model.metadata import MetadataContainer
 
 
 def lockWrapper(func):
@@ -38,16 +40,15 @@ class DropBoxModel:
         self.rootdir = rootdir
         self.swapdir = swapdir
         self.mutex = threading.Lock()
-        self.local_metadata = {}
-        self.local_metadata_file_path = "/tmp/dropbox/metadata.json"
+        self.local_metadata = MetadataContainer()
+        self.local_metadata_file_path = "/tmp/dropbox/metadata.pkl"
         self.cursor = None  # state cursor for dropbox
         self.full_metadata = self.fetchAllMetadata()
 
         if os.path.exists(self.local_metadata_file_path):
             with open(self.local_metadata_file_path, "r") as f:
-
                 try:
-                    self.local_metadata = json.load(f)
+                    self.local_metadata = pickle.load(f)
                 except Exception as e:
                     logger.error(f"Error loading metadata from file: {e}")
         for k, v in self.local_metadata.items():
@@ -166,6 +167,7 @@ class DropBoxModel:
                     "type": "file",
                     "mtime": utc_time.timestamp(),
                     "uploaded": True,
+                    "path": v.path_display,
                 }
             elif isinstance(v, dropbox.files.FolderMetadata):
                 metadata[v.path_display] = {
@@ -174,28 +176,29 @@ class DropBoxModel:
                     "type": "folder",
                     "mtime": time.time(),
                     "uploaded": True,
+                    "path": v.path_display,
                 }
 
         return metadata
 
-    def flushMetadata(self, metadata: dict):
+    def flushMetadata(self, metadata: MetadataContainer):
         """
         flush the metadata to the file
 
         """
         metadata_file_path = "/tmp/dropbox/metadata.json"
         logger.warning(f"Ready to flush, metadata: {metadata}")
-        with open(self.local_metadata_file_path, "w") as f:
+        with open(self.local_metadata_file_path, "wb") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 logger.warning(f"Flushing metadata to file, metadata: {metadata}")
                 self.mutex.acquire()
-                json.dump(metadata, f, indent=4)
+                pickle.dump(metadata, f)
             finally:
                 self.mutex.release()
                 fcntl.flock(f, fcntl.LOCK_UN)
 
-    def flushMetadataAsync(self, metadata: dict):
+    def flushMetadataAsync(self, metadata: MetadataContainer):
         """
         flush the metadata to the file asynchronously
         """
@@ -344,6 +347,7 @@ class DropBoxModel:
                 "type": "folder",
                 "mtime": time.time(),
                 "uploaded": False,
+                "path": "/" + path,
             }
             self.local_metadata["/" + path] = new_file_metadata
             self.flushMetadataAsync(self.local_metadata)
@@ -364,6 +368,7 @@ class DropBoxModel:
                 "type": "file",
                 "mtime": time.time(),
                 "uploaded": False,
+                "path": path,
             }
             self.local_metadata[path] = new_file_metadata
             self.flushMetadataAsync(self.local_metadata)

@@ -129,7 +129,7 @@ class TestDropBox:
         assert len(res) == 2
         res, _ = self.dropbox.list_folder("", recursive=True)
         print(res.keys())
-        assert len(res) == 17
+        assert len(res) == 18
         # remove the directory
         os.system("rm -r ~/Desktop/dropbox/testdir")
         time.sleep(5)

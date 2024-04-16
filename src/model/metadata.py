@@ -34,3 +34,33 @@ class MetadataContainer:
         id = self.path_to_id[path]
         del self.path_to_id[path]
         del self.id_metadata[id]
+
+    def __contains__(self, path):
+        return path in self.path_to_id
+
+    def __len__(self):
+        return len(self.path_to_id)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.path_to_id}, {self.id_metadata})"
+
+    def __str__(self) -> str:
+        return f"{self.path_to_id}, {self.id_metadata}"
+
+    def items(self):
+        return [(path, self.id_metadata[id]) for path, id in self.path_to_id.items()]
+
+    def pop(self, path):
+        if self.path_to_id.get(path, None) is None:
+            return None
+        id = self.path_to_id[path]
+        del self.path_to_id[path]
+        return self.id_metadata.pop(id)
+
+    def get(self, path, default=None):
+        if self.path_to_id.get(path, None) is None:
+            return default
+        return self.id_metadata[self.path_to_id[path]]
+
+    def keys(self):
+        return self.path_to_id.keys()
