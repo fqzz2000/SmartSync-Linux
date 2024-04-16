@@ -144,23 +144,19 @@ if __name__ == "__main__":
         sys.exit(1)
     rootPath = "/home/tq22/ece566/SmartSync-Linux/cache"
     db = DropboxInterface(sys.argv[1])
-    dic, _ = db.list_folder("", recursive=True)
-    print(dic)
-    servertime = dic["hi.txt"].server_modified
-    utc_time = servertime.replace(tzinfo=ZoneInfo("UTC"))
-    print(utc_time.timestamp())
-    print(dic["hi.txt"].server_modified)
-    # print(dic["hi.txt"].client_modified)
-    # print(dic["hi.txt"].server_modified.timestamp())
-    # print(datetime.datetime.now().timestamp())
-    local_time = utc_time.astimezone(get_localzone())
-    print(local_time)
-    # for k, v in dic.items():
-    #     print(k, v)
-    #     print()
+    dic, c = db.list_folder("", recursive=True)
 
-    # input("Press Enter to continue...")
-    # update = db.getUpdates()
-    # for k, v in update.items():
-    #     print(k, v)
-    #     print()
+    for k, v in dic.items():
+        print(k, v)
+        print()
+
+    input("Press Enter to continue...")
+    update, c = db.getUpdates(c)
+    for k, v in update.items():
+        print(k, v)
+        print()
+    input("Press Enter to continue...")
+    update, c = db.getUpdates(c)
+    for k, v in update.items():
+        print(k, v)
+        print()

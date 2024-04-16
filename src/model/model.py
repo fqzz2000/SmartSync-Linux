@@ -1,4 +1,5 @@
 # commandline interface for the program
+import shutil
 import threading
 import time
 from src.data.data import DropboxInterface
@@ -16,6 +17,7 @@ import fcntl
 from datetime import datetime
 from stat import S_IFDIR, S_IFREG
 import errno
+from pathlib import Path
 
 
 def lockWrapper(func):
@@ -38,7 +40,7 @@ class DropBoxModel:
         self.mutex = threading.Lock()
         self.local_metadata = {}
         self.local_metadata_file_path = "/tmp/dropbox/metadata.json"
-
+        self.cursor = None  # state cursor for dropbox
         self.full_metadata = self.fetchAllMetadata()
 
         if os.path.exists(self.local_metadata_file_path):
@@ -69,7 +71,47 @@ class DropBoxModel:
 
     @lockWrapper
     def updateFullMetadata(self):
-        self.full_metadata = self.fetchAllMetadata()
+        # self.full_metadata = self.fetchAllMetadata()
+        try:
+            self.full_metadata = self.fetchUpdateMetadata()
+        except Exception as e:
+            logger.error(e)
+
+    def fetchUpdateMetadata(self):
+
+        logger.info("Fetching update metadata")
+        res, self.cursor = self.dbx.getUpdates(self.cursor)
+        logger.info(f"Got update metadata: {res}")
+        # get a delete file list
+
+        def cleanPath(path):
+            # check if the file exist locally
+            local_path = os.path.join(self.rootdir, path.lstrip("/"))
+            if os.path.exists(local_path):
+                # check if the path is a file or a folder
+                if os.path.isfile(local_path) and self.local_metadata[path]["uploaded"]:
+                    os.unlink(local_path)
+                elif os.path.isdir(local_path):
+                    shutil.rmtree(local_path)
+
+        dList = []
+        try:
+            for k, file in res.items():
+                if isinstance(file, dropbox.files.DeletedMetadata):
+                    path = file.path_display
+                    if path in self.local_metadata:
+                        # clean the file
+                        cleanPath(path)
+                        # update the metadata
+                        self.local_metadata.pop(path)
+                        dList.append(k)
+            logger.info(f"Deleted files & dirs: {dList}")
+            for k in dList:
+                res.pop(k)
+        except Exception as e:
+            logger.error(e)
+
+        return self.fetchAllMetadata()
 
     def fetchAllMetadata(self):
         """
@@ -160,6 +202,7 @@ class DropBoxModel:
         flushThread.start()
 
     def getattr(self, path: str):
+        logger.info(f"GETATTR MODEL CALLED, path: {path}")
         local_path = os.path.join(self.rootdir, path.lstrip("/"))
         now = time.time()
         default_attrs = {
@@ -227,6 +270,16 @@ class DropBoxModel:
         raise OSError(errno.ENOENT, "No such file or directory")
 
     def readdir(self, path: str):
+        def is_direct_subpath(parent_path, child_path):
+            parent = Path(parent_path)
+            child = Path(child_path)
+            try:
+                relative = child.relative_to(parent)
+                # if there is only one part in the relative path, then child is a direct subpath of parent
+                return len(relative.parts) == 1
+            except ValueError:
+                return False
+
         remote_metadata = self.full_metadata
 
         local_path = os.path.join(self.rootdir, path.lstrip("/"))
@@ -235,6 +288,8 @@ class DropBoxModel:
 
         direntries = [".", ".."]
         for local_key in list(self.local_metadata.keys()):
+            if not is_direct_subpath(path, local_key):
+                continue
             if not self.local_metadata[local_key][
                 "uploaded"
             ]:  # False if file hasn't been uploaded
@@ -274,16 +329,20 @@ class DropBoxModel:
         # create remotely
         try:
             self.dbx.mkdir("/" + path)
+            logger.info(f"folder created remotely")
             # create locally
             new_path = os.path.join(self.rootdir, path)
+            logger.info(f"new path: {new_path}")
             os.mkdir(new_path, mode)
+            logger.info(f"folder created locally")
             dir_name = os.path.basename("/" + path)
+            logger.info("dir name: " + dir_name)
             new_file_metadata = {
                 "name": dir_name,
                 "size": 4096,
                 "type": "folder",
                 "mtime": time.time(),
-                "uploaded": True,
+                "uploaded": False,
             }
             self.local_metadata["/" + path] = new_file_metadata
             self.flushMetadataAsync(self.local_metadata)

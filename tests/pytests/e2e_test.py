@@ -18,59 +18,129 @@ import shutil
 WORKING_DIR = os.path.expanduser("~/Desktop")
 
 
-def compareDirectories(dir1, dir2):
-    for dirpath, dirnames, filenames in os.walk(dir1):
-        for filename in filenames:
-            file1 = os.path.join(dirpath, filename)
-            file2 = os.path.join(dirpath.replace(dir1, dir2), filename)
-            assert os.path.exists(file2)
-            assert os.path.getsize(file1) == os.path.getsize(file2)
-
-
 class TestDropBox:
 
     @pytest.fixture(autouse=True)
-    def setup_downloading_thread(self):
-        """setup downloading instance for testing"""
-
-        self.dropboxpath = os.path.join(WORKING_DIR, "dropbox")
-        # cleanup the directory
-        shutil.rmtree(self.dropboxpath, ignore_errors=True)
-        # start dropbox daemon
-        self.process = subprocess.Popen(
-            ["bash"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        self.process.stdin.write("python3 -m src start -t\n")
-        self.process.stdin.flush()
-        print("Dropbox started")
-        # get the auth token
-        self.auth_token = os.getenv("MY_APP_AUTH_TOKEN")
-        # create a dropbox instance
-        self.dropbox = DropboxInterface(self.auth_token)
-        yield
-        # cleanup all files and directories created during testing
-        self.process.stdin.write("python3 -m src stop\n")
-        self.process.stdin.flush()
-        shutil.rmtree(self.dropboxpath, ignore_errors=True)
+    def setup(self):
+        token = os.environ.get("MY_APP_AUTH_TOKEN")
+        self.dropbox = DropboxInterface(token)
 
     def test_write_rm_file(self):
         # upload a file
-
-        self.process.stdin.write(f"echo 'hello' > {self.dropboxpath}/testfile.txt\n")
-        self.process.stdin.flush()
+        os.system("echo 'hello world' > ~/Desktop/dropbox/testfile.txt")
         time.sleep(10)
         res, _ = self.dropbox.list_folder("")
         print(res)
         assert len(res) == 1
         # remove the file
-        self.process.stdin.write(f"rm {self.dropboxpath}/testfile.txt\n")
+        os.system("rm ~/Desktop/dropbox/testfile.txt")
         time.sleep(1)
-        res = self.dropbox.list_folder("")
+        res, _ = self.dropbox.list_folder("")
         assert len(res) == 0
+
+    def test_multiple_write(self):
+        # upload 100 files
+        for i in range(10):
+            os.system(f"echo 'hello world {i}' > ~/Desktop/dropbox/testfile{i}.txt")
+        time.sleep(20)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 10
+        # remove the files
+        for i in range(10):
+            os.system(f"rm ~/Desktop/dropbox/testfile{i}.txt")
+        time.sleep(5)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        time.sleep(5)
+
+    def test_write_rm_dir(self):
+        # create a directory
+        os.system("mkdir ~/Desktop/dropbox/testdir")
+        time.sleep(10)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # remove the directory
+        os.system("rm -r ~/Desktop/dropbox/testdir")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        time.sleep(5)
+
+    def test_write_dir_and_file_no_same_name(self):
+        # create a directory
+        os.system("mkdir ~/Desktop/dropbox/testdir")
+        time.sleep(10)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # create a file
+        os.system("echo 'hello world' > ~/Desktop/dropbox/testfile.txt")
+        # create 10 files in the directory
+        for i in range(10):
+            os.system(
+                f"echo 'hello world {i}' > ~/Desktop/dropbox/testdir/testfile{i}.txt"
+            )
+        # create a directory in the directory
+        os.system("mkdir ~/Desktop/dropbox/testdir/testdir2")
+        # create 5 files in the directory in the directory
+        for i in range(5):
+            os.system(
+                f"echo 'hello world {i}' > ~/Desktop/dropbox/testdir/testdir2/testfile2{i}.txt"
+            )
+        time.sleep(40)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 2
+        res, _ = self.dropbox.list_folder("", recursive=True)
+        print(res.keys())
+        assert len(res) == 18
+        # remove the directory
+        os.system("rm -r ~/Desktop/dropbox/testdir")
+        time.sleep(5)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # remove the file
+        os.system("rm ~/Desktop/dropbox/testfile.txt")
+        time.sleep(5)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        time.sleep(5)
+
+    def test_write_dir_and_file_same_name(self):
+        # create a directory
+        os.system("mkdir ~/Desktop/dropbox/testdir")
+        time.sleep(10)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # create a file
+        os.system("echo 'hello world' > ~/Desktop/dropbox/testfile.txt")
+        # create 10 files in the directory
+        for i in range(10):
+            os.system(
+                f"echo 'hello world {i}' > ~/Desktop/dropbox/testdir/testfile{i}.txt"
+            )
+        # create a directory in the directory
+        os.system("mkdir ~/Desktop/dropbox/testdir/testdir")
+        # create 5 files in the directory in the directory
+        for i in range(5):
+            os.system(
+                f"echo 'hello world {i}' > ~/Desktop/dropbox/testdir/testdir/testfile{i}.txt"
+            )
+        time.sleep(40)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 2
+        res, _ = self.dropbox.list_folder("", recursive=True)
+        print(res.keys())
+        assert len(res) == 17
+        # remove the directory
+        os.system("rm -r ~/Desktop/dropbox/testdir")
+        time.sleep(5)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # remove the file
+        os.system("rm ~/Desktop/dropbox/testfile.txt")
+        time.sleep(5)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        time.sleep(5)
 
 
 if __name__ == "__main__":
