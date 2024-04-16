@@ -84,7 +84,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"MKDIR CALLED, path: {path}")
         # logger.info(f"MKDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if self.db.createFolder(path.lstrip("/"), mode) == -1:
-            raise FuseOSError(errno.ENOENT)
+            raise FuseOSError(errno.EEXIST)
 
     def open(self, path, flags):
         logger.info(f"OPEN CALLED, path: {path}")
@@ -130,6 +130,8 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"RENAME CALLED, path: {old} to {new}")
 
         if self.db.move(old.lstrip("/"), new.lstrip("/")) == -1:
+            raise FuseOSError(errno.EBUSY)
+        if self.db.move(old.lstrip("/"), new.lstrip("/")) == -2:
             raise FuseOSError(errno.ENOENT)
 
     def rmdir(self, path):
@@ -137,6 +139,8 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"RMDIR CALLED, path: {path}")
         # with multiple level support, need to raise ENOTEMPTY if contains any files
         if self.db.deleteFolder(path.lstrip("/")) == -1:
+            raise FuseOSError(errno.EBUSY)
+        if self.db.deleteFolder(path.lstrip("/")) == -2:
             raise FuseOSError(errno.ENOENT)
 
     def setxattr(self, path, name, value, options, position=0):
@@ -191,6 +195,8 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"UNLINK CALLED, path: {path}")
         # logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         if self.db.deleteFile(path.lstrip("/")) == -1:
+            raise FuseOSError(errno.EBUSY)
+        if self.db.deleteFile(path.lstrip("/")) == -2:
             raise FuseOSError(errno.ENOENT)
         
 

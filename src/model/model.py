@@ -390,7 +390,7 @@ class DropBoxModel:
                 os.rmdir(new_path)
             except Exception as e:
                 logger.error(e)
-                return -1
+                return -2
             # update metadata
             keys_to_delete = [
                 k for k in self.local_metadata.keys() if k.startswith("/" + path)
@@ -402,7 +402,7 @@ class DropBoxModel:
                 self.flushMetadataAsync(self.local_metadata)
             except Exception as e:
                 logger.error(e)
-                return -1
+                return -2
         return 0
 
     @lockWrapper
@@ -425,7 +425,7 @@ class DropBoxModel:
                 os.unlink(new_path)
             except Exception as e:
                 logger.error(e)
-                return -1
+                return -2
             # update metadata
             if path in self.local_metadata:
                 self.local_metadata.pop("/" + path)
@@ -433,7 +433,7 @@ class DropBoxModel:
                 self.flushMetadataAsync(self.local_metadata)
             except Exception as e:
                 logger.error(e)
-                return -1
+                return -2
         return 0
 
     @lockWrapper
@@ -518,7 +518,7 @@ class DropBoxModel:
                 os.rename(old_path, new_path)
             except Exception as e:
                 logger.error(f"Error moving file: {e}")
-                return -1
+                return -2
             # metadata update
             try:
                 if old in self.local_metadata:
@@ -548,7 +548,7 @@ class DropBoxModel:
                 self.flushMetadataAsync(self.local_metadata)
             except Exception as e:
                 logger.error(f"Error moving file: {e}")
-                return -1
+                return -2
         return 0
 
     def getSpaceUsage(self) -> dict:
