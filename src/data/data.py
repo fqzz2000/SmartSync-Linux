@@ -31,7 +31,7 @@ class DropboxInterface:
             logger.error("ListFolder Error: There are more files to list")
         rv = {}
         for entry in res.entries:
-            rv[entry.name] = entry
+            rv[entry.path_display] = entry
 
         return rv, res.cursor
 
