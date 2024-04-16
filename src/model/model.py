@@ -105,6 +105,7 @@ class DropBoxModel:
                         # update the metadata
                         self.local_metadata.pop(path)
                         dList.append(k)
+                        self.flushMetadataAsync(self.local_metadata)
             logger.info(f"Deleted files & dirs: {dList}")
             for k in dList:
                 res.pop(k)
@@ -218,10 +219,10 @@ class DropBoxModel:
         # remote_metadata = remote_metadata.get(path) if remote_metadata is not None else None
         remote_metadata = self.full_metadata.get(path)
         if path in self.local_metadata:
-            local_v = self.local_metadata[path]
+            local_v = self.local_metadata.get(path)
             ret = os.stat(local_path) if os.path.exists(local_path) else default_attrs
 
-            if not local_v["uploaded"]:
+            if local_v is not None:
                 return {
                     "st_atime": ret.st_atime,
                     "st_ctime": ret.st_ctime,
@@ -281,20 +282,20 @@ class DropBoxModel:
                 return False
 
         remote_metadata = self.full_metadata
-
+        print("full: ", self.full_metadata)
         local_path = os.path.join(self.rootdir, path.lstrip("/"))
         if not os.path.exists(local_path):
             os.makedirs(local_path, exist_ok=True)
-
+        print(self.local_metadata)
         direntries = [".", ".."]
         for local_key in list(self.local_metadata.keys()):
             if not is_direct_subpath(path, local_key):
                 continue
-            if not self.local_metadata[local_key][
-                "uploaded"
-            ]:  # False if file hasn't been uploaded
-                m_name = self.local_metadata[local_key]["name"]
-                direntries.append(m_name)
+            # if not self.local_metadata[local_key][
+            #     "uploaded"
+            # ]:  # False if file hasn't been uploaded
+            m_name = self.local_metadata[local_key]["name"]
+            direntries.append(m_name)
         if remote_metadata is not None:
             for m_path in remote_metadata.keys():
                 if os.path.dirname(m_path.lstrip("/")) == path.lstrip("/"):
@@ -452,8 +453,8 @@ class DropBoxModel:
 
                 # self.metadata[path] = metadata_from_db[path]
             else:
-                local_v = self.local_metadata[path]
-                if local_v["uploaded"]:
+                local_v = self.local_metadata.get(path)
+                if local_v is not None:
                     # db_v = metadata_from_db.get(path)
                     # if db_v is None:
                     #     raise FuseOSError(errno.ENOENT)
