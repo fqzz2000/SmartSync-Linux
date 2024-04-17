@@ -26,6 +26,7 @@ class CloudStatusExtension(GObject.GObject, Nemo.InfoProvider):
             return
         file_path = file.get_location().get_path()
         if file_path.startswith(self.target_dir_path):
+            file_path = file_path.replace(self.target_dir_path, '')
             if file_path in self.local_paths:
                 file.add_emblem('emblem-default')
             else:
