@@ -65,9 +65,23 @@ class UploadingThread:
             logger.warning(f"Uploading {path} {file}")
 
             try:
-                self.dbx.upload(path, file, True)
-
+                res = self.dbx.upload(path, file, True)
                 successList.append(file)
+                if res is None:
+                    logger.error(f"Upload {path} {file} failed")
+                else:
+                    remote_id = res.id
+                    self.mutex.acquire()
+                    try:
+                        logger.info(f"{path} {file} uploaded as {res}")
+                        self.metadata.update_id(file, remote_id)
+                        logger.info(f"metadata of {file} updated to {remote_id}")
+                    except Exception as e:
+                        # print to stderr
+                        print(e, file=sys.stderr)
+
+                    self.mutex.release()
+
             except Exception as e:
                 # print to stderr
                 print(e, file=sys.stderr)

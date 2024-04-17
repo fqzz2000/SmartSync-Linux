@@ -73,8 +73,9 @@ class DropboxInterface:
                     logger.warning(f"uploaded as {res.name}")
                     return res
                 else:
-                    self.upload_large_file(file, path, len(data))
+                    res = self.upload_large_file(file, path, len(data))
                     logger.warning(f"uploaded as {path}")
+                    return res
             except dropbox.exceptions.ApiError as err:
                 print("*** API error", err)
                 return None
@@ -96,9 +97,10 @@ class DropboxInterface:
             while f.tell() < size:
                 # logger.warning(f"Uploaded {f.tell()} of {size}")
                 if (size - f.tell()) <= CHUNK_SIZE:
-                    self.dbx.files_upload_session_finish(
+                    res = self.dbx.files_upload_session_finish(
                         f.read(CHUNK_SIZE), cursor, commit
                     )
+                    return res
                 else:
                     self.dbx.files_upload_session_append_v2(f.read(CHUNK_SIZE), cursor)
                     cursor.offset = f.tell()
@@ -114,7 +116,7 @@ class DropboxInterface:
         os.remove(zip_file_path)
 
     def mkdir(self, path):
-        self.dbx.files_create_folder(path)
+        return self.dbx.files_create_folder(path)
 
     def delete(self, path):
         self.dbx.files_delete(path)
@@ -149,14 +151,11 @@ if __name__ == "__main__":
     for k, v in dic.items():
         print(k, v)
         print()
-
-    input("Press Enter to continue...")
-    update, c = db.getUpdates(c)
-    for k, v in update.items():
-        print(k, v)
-        print()
-    input("Press Enter to continue...")
-    update, c = db.getUpdates(c)
-    for k, v in update.items():
-        print(k, v)
-        print()
+    while True:
+        inp = input("Press Enter to continue... (n) to exit: ")
+        if inp == "n":
+            break
+        update, c = db.getUpdates(c)
+        for k, v in update.items():
+            print(k, v)
+            print()

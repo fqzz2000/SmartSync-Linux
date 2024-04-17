@@ -1,5 +1,6 @@
 # commandline interface for the program
 import shutil
+import sys
 import threading
 import time
 from src.data.data import DropboxInterface
@@ -52,7 +53,8 @@ class DropBoxModel:
                 except Exception as e:
                     logger.error(f"Error loading metadata from file: {e}")
         for k, v in self.local_metadata.items():
-            v["uploaded"] = True
+            if v["type"] == "file":
+                v["uploaded"] = True
 
         self.synchronizeThread = UploadingThread(
             self.dbx, self.mutex, self.local_metadata
@@ -92,8 +94,30 @@ class DropBoxModel:
                 # check if the path is a file or a folder
                 if os.path.isfile(local_path) and self.local_metadata[path]["uploaded"]:
                     os.unlink(local_path)
+                    logger.info(f"deleted {local_path}")
                 elif os.path.isdir(local_path):
                     shutil.rmtree(local_path)
+
+        def handleMove(id, path, new_path):
+
+            if (
+                self.local_metadata[path]["type"] == "file"
+                and not self.local_metadata[path]["uploaded"]
+            ):
+                # if the file is not uploaded, return
+                return
+            elif self.local_metadata[path]["type"] == "folder":
+                # create a new folder in place
+                os.makedirs(
+                    os.path.join(self.rootdir, new_path.lstrip("/")), exist_ok=True
+                )
+            # no need to actually move the file, just update the metadata and delete the old one
+            logger.info(f"deleting {path}")
+            cleanPath(path)
+            self.local_metadata.pop(path)
+            logger.info(
+                f"updated {id} from {path} to {new_path}, current metadata: {self.local_metadata}"
+            )
 
         dList = []
         try:
@@ -107,6 +131,26 @@ class DropBoxModel:
                         self.local_metadata.pop(path)
                         dList.append(k)
                         self.flushMetadataAsync(self.local_metadata)
+                elif isinstance(file, dropbox.files.FileMetadata) or isinstance(
+                    file, dropbox.files.FolderMetadata
+                ):
+
+                    # dealing with move
+                    path = file.path_display
+                    id = file.id
+                    # if data moved
+                    if (
+                        id in self.local_metadata.id_metadata
+                        and path != self.local_metadata.id_metadata[id]["path"]
+                    ):
+                        logger.info(
+                            f"moving file from {self.local_metadata.id_metadata[id]['path']} to {path}"
+                        )
+                        handleMove(
+                            id, self.local_metadata.id_metadata[id]["path"], path
+                        )
+                    else:
+                        logger.info(f"adding file {path}")
             logger.info(f"Deleted files & dirs: {dList}")
             for k in dList:
                 res.pop(k)
@@ -223,19 +267,24 @@ class DropBoxModel:
         remote_metadata = self.full_metadata.get(path)
         if path in self.local_metadata:
             local_v = self.local_metadata.get(path)
-            ret = os.stat(local_path) if os.path.exists(local_path) else default_attrs
+            if os.path.exists(local_path):
+                ret = os.stat(local_path)
 
             if local_v is not None:
-                return {
-                    "st_atime": ret.st_atime,
-                    "st_ctime": ret.st_ctime,
-                    "st_gid": ret.st_gid,
-                    "st_mode": ret.st_mode,
-                    "st_mtime": ret.st_mtime,
-                    "st_nlink": ret.st_nlink,
-                    "st_size": ret.st_size,
-                    "st_uid": ret.st_uid,
-                }
+                if os.path.exists(local_path):
+                    ret = os.stat(local_path)
+                    return {
+                        "st_atime": ret.st_atime,
+                        "st_ctime": ret.st_ctime,
+                        "st_gid": ret.st_gid,
+                        "st_mode": ret.st_mode,
+                        "st_mtime": ret.st_mtime,
+                        "st_nlink": ret.st_nlink,
+                        "st_size": ret.st_size,
+                        "st_uid": ret.st_uid,
+                    }
+                else:
+                    return default_attrs
             elif remote_metadata and remote_metadata.get("type") == "file":
                 lct = local_v["mtime"]
                 rmt = remote_metadata["mtime"]
@@ -292,6 +341,10 @@ class DropBoxModel:
         # print(self.local_metadata)
         direntries = [".", ".."]
         for local_key in list(self.local_metadata.keys()):
+            print(
+                f"readdir local_key: {local_key}, is_direct_subpath of {path}, {is_direct_subpath(path, local_key)}",
+                file=sys.stderr,
+            )
             if not is_direct_subpath(path, local_key):
                 continue
             # if not self.local_metadata[local_key][
@@ -332,7 +385,7 @@ class DropBoxModel:
         """
         # create remotely
         try:
-            self.dbx.mkdir("/" + path)
+            res = self.dbx.mkdir("/" + path)
             logger.info(f"folder created remotely")
             # create locally
             new_path = os.path.join(self.rootdir, path)
@@ -350,6 +403,8 @@ class DropBoxModel:
                 "path": "/" + path,
             }
             self.local_metadata["/" + path] = new_file_metadata
+            # record the id of the folder to facilitate the update
+            self.local_metadata.update_id("/" + path, res.id)
             self.flushMetadataAsync(self.local_metadata)
         except Exception as e:
             logger.error(e)
@@ -565,7 +620,7 @@ class DropBoxModel:
             return self.dbx.users_get_space_usage()
         except Exception as e:
             logger.error(e)
-            return None
+            return 0, 0
 
     # def triggerDownload(self):
     #     self.downloadingThread.addTask()
