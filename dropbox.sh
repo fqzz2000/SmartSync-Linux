@@ -4,7 +4,7 @@ SRC_DIR="./src"
 DEST_DIR="~/Desktop/.config"
 DEST_SRC_DIR="~/Desktop/.config/src"
 EXTENSION_SRC="./ui/CloudStatusExtension.py"
-EXTENSION_DEST="~/.local/share/nemo-python/CloudStatusExtension.py"
+EXTENSION_DEST="~/.local/share/nemo-python/extensions/CloudStatusExtension.py"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 cd "$SCRIPT_DIR"
