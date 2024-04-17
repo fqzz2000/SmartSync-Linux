@@ -2,22 +2,24 @@ import os
 import gi
 gi.require_version('Nemo', '3.0')
 from gi.repository import Nemo, GObject
-import json
-import pyinotify
-
+import pickle
+import sys
+sys.path.append('/home/tq22/SmartSync-Linux')
+import importlib
+src = importlib.import_module('src')
 
 class CloudStatusExtension(GObject.GObject, Nemo.InfoProvider):
     def __init__(self):
         self.local_paths = []
-        self.json_file_path = '/home/tenki/Desktop/metadata.json'
+        self.metadata_file_path = os.path.expanduser('~/Desktop/.config/metadata.pkl')
         self.target_dir_path = os.path.expanduser('~/Desktop/dropbox')
         self.load_local_paths()
-#        self.setup_inotify_watcher()
     
     def load_local_paths(self):
         try:
-            with open(self.json_file_path, 'r') as f:
-                self.local_paths = list(json.load(f).keys())
+            with open(self.metadata_file_path, 'rb') as f:
+                tmp_paths = list(pickle.load(f).keys())
+                self.local_paths = [s.lstrip('/') for s in tmp_paths]
                 print(f"load_local_path_finish: {self.local_paths}")
         except Exception as e:
             self.local_paths = []
@@ -36,17 +38,3 @@ class CloudStatusExtension(GObject.GObject, Nemo.InfoProvider):
                 else:
                     file.add_emblem('emblem-web')
                 print(f"emblem add finished")
-
-    def setup_inotify_watcher(self):
-        wm = pyinotify.WatchManager()
-        handler = OnWriteHandler(self)
-        notifier = pyinotify.Notifier(wm, handler)
-        wm.add_watch(self.json_file_path, pyinotify.IN_MODIFY)
-        notifier.loop()
-
-class OnWriteHandler(pyinotify.ProcessEvent):
-    def __init__(self, extension):
-        self.extension = extension
-
-    def process_IN_MODIFY(self, event):
-        self.extension.load_local_paths()

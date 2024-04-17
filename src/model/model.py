@@ -34,19 +34,18 @@ def lockWrapper(func):
 
 
 class DropBoxModel:
-
     def __init__(self, interface, rootdir, swapdir) -> None:
         self.dbx = interface
         self.rootdir = rootdir
         self.swapdir = swapdir
         self.mutex = threading.Lock()
         self.local_metadata = MetadataContainer()
-        self.local_metadata_file_path = "/tmp/dropbox/metadata.pkl"
+        self.local_metadata_file_path = os.path.expanduser("~/Desktop/.config/metadata.pkl")
         self.cursor = None  # state cursor for dropbox
         self.full_metadata = self.fetchAllMetadata()
 
         if os.path.exists(self.local_metadata_file_path):
-            with open(self.local_metadata_file_path, "r") as f:
+            with open(self.local_metadata_file_path, "rb") as f:
                 try:
                     self.local_metadata = pickle.load(f)
                 except Exception as e:
@@ -63,7 +62,8 @@ class DropBoxModel:
         self.thread.start()
         self.dthread.start()
         print("Model initialized")
-        logger.add("/tmp/dropbox/dropbox.log", level="INFO")
+        log_path = os.path.expanduser("~/Desktop/.config/dropbox.log")
+        logger.add(log_path, level="INFO")
 
     def stop(self):
         self.synchronizeThread.stop()
@@ -186,7 +186,6 @@ class DropBoxModel:
         flush the metadata to the file
 
         """
-        metadata_file_path = "/tmp/dropbox/metadata.json"
         logger.warning(f"Ready to flush, metadata: {metadata}")
         with open(self.local_metadata_file_path, "wb") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
@@ -202,6 +201,7 @@ class DropBoxModel:
         """
         flush the metadata to the file asynchronously
         """
+        logger.warning(f"Going to Flushing metadata to file, metadata: {metadata}")
         flushThread = threading.Thread(target=self.flushMetadata, args=(metadata,))
         flushThread.start()
 
@@ -451,7 +451,9 @@ class DropBoxModel:
             remote_metadata = self.full_metadata.get(path)
             if remote_metadata is None:
                 return -1
+            logger.warning(f"remote metadata: {remote_metadata}")
             if not os.path.exists(local_path):
+                logger.warning(f"local file not exists: {local_path}")
                 self.download_file(path, local_path)  # trigger download
                 self.local_metadata[path] = remote_metadata
                 self.flushMetadataAsync(self.local_metadata)

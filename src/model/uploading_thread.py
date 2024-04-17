@@ -1,5 +1,6 @@
 import sys
 import time
+import os
 from loguru import logger
 
 
@@ -21,7 +22,8 @@ class UploadingThread:
         self.mutex = lock
         self.uploadingQueue = []
         self.metadata = metadata
-        logger.add("/tmp/dropbox/dropbox.log", level="INFO")
+        log_path = os.path.expanduser("~/Desktop/.config/dropbox.log")
+        logger.add(log_path, level="INFO")
 
     def __call__(self):
         """
