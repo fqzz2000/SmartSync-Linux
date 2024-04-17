@@ -1,10 +1,11 @@
 #!/bin/bash
 
 SRC_DIR="./src"
-DEST_DIR="~/Desktop/.config"
-DEST_SRC_DIR="~/Desktop/.config/src"
+DEST_DIR="$HOME/Desktop/.config"
+DEST_SRC_DIR="$HOME/Desktop/.config/src"
 EXTENSION_SRC="./ui/CloudStatusExtension.py"
-EXTENSION_DEST="~/.local/share/nemo-python/extensions/CloudStatusExtension.py"
+EXTENSION_DEST="$HOME/.local/share/nemo-python/extensions/"
+EXTENSION_DEST_SRC="$HOME/.local/share/nemo-python/extensions/CloudStatusExtension.py"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 cd "$SCRIPT_DIR"
@@ -30,7 +31,7 @@ case "$1" in
         echo "Stopping application..."
         cd $DEST_DIR
         python3 -m src stop
-        rm $EXTENSION_DEST
+        rm $EXTENSION_DEST_SRC
         nemo -q && nemo &
         ;;
     *)
