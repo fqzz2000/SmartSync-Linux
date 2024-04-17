@@ -114,7 +114,7 @@ class DropBoxModel:
             # no need to actually move the file, just update the metadata and delete the old one
             logger.info(f"deleting {path}")
             cleanPath(path)
-            self.local_metadata.update_path(id, path, new_path)
+            self.local_metadata.pop(path)
             logger.info(
                 f"updated {id} from {path} to {new_path}, current metadata: {self.local_metadata}"
             )
