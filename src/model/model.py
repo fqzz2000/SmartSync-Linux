@@ -63,7 +63,7 @@ class DropBoxModel:
         self.dthread.start()
         print("Model initialized")
         log_path = os.path.expanduser("~/Desktop/.config/dropbox.log")
-        logger.add(log_path, level="INFO")
+        logger.add(log_path, level="CRITICAL")
 
     def stop(self):
         self.synchronizeThread.stop()
