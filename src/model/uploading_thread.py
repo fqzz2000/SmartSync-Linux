@@ -23,7 +23,7 @@ class UploadingThread:
         self.uploadingQueue = []
         self.metadata = metadata
         log_path = os.path.expanduser("~/Desktop/.config/dropbox.log")
-        logger.add(log_path, level="CRITICAL")
+        logger.add(log_path, level="ERROR")
 
     def __call__(self):
         """
