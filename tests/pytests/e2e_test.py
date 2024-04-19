@@ -142,6 +142,89 @@ class TestDropBox:
         assert len(res) == 0
         time.sleep(5)
 
+    def test_move_file(self):
+        # create a file
+        os.system("echo 'hello world' > ~/Desktop/dropbox/testfile.txt")
+        time.sleep(10)
+        res, _ = self.dropbox.list_folder("")
+        assert res["/testfile.txt"].name == "testfile.txt"
+        assert len(res) == 1
+        # move the file
+        os.system("mv ~/Desktop/dropbox/testfile.txt ~/Desktop/dropbox/testfile2.txt")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert res["/testfile2.txt"].name == "testfile2.txt"
+        assert len(res) == 1
+        # remove the file
+        os.system("rm ~/Desktop/dropbox/testfile2.txt")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        time.sleep(5)
+
+    def test_move_to_folder(self):
+        # create a file
+        os.system("echo 'hello world' > ~/Desktop/dropbox/testfile.txt")
+        time.sleep(10)
+        res, _ = self.dropbox.list_folder("")
+        assert res["/testfile.txt"].name == "testfile.txt"
+        assert len(res) == 1
+        # create a directory
+        os.system("mkdir ~/Desktop/dropbox/testdir")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 2
+        # move the file to the directory
+        os.system(
+            "mv ~/Desktop/dropbox/testfile.txt ~/Desktop/dropbox/testdir/testfile.txt"
+        )
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        res, _ = self.dropbox.list_folder("", recursive=True)
+        assert len(res) == 2
+        # remove the directory
+        os.system("rm -r ~/Desktop/dropbox/testdir")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        # remove the file
+        os.system("rm ~/Desktop/dropbox/testfile.txt")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        time.sleep(5)
+
+    def test_move_out_folder(self):
+        # create a directory
+        os.system("mkdir ~/Desktop/dropbox/testdir")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # create a file in the directory
+        os.system("echo 'hello world' > ~/Desktop/dropbox/testdir/testfile.txt")
+        time.sleep(10)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # move the file out of the directory
+        os.system(
+            "mv ~/Desktop/dropbox/testdir/testfile.txt ~/Desktop/dropbox/testfile.txt"
+        )
+        time.sleep(2)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 2
+        # remove the directory
+        os.system("rm -r ~/Desktop/dropbox/testdir")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 1
+        # remove the file
+        os.system("rm ~/Desktop/dropbox/testfile.txt")
+        time.sleep(1)
+        res, _ = self.dropbox.list_folder("")
+        assert len(res) == 0
+        time.sleep(5)
+
 
 if __name__ == "__main__":
     pass
