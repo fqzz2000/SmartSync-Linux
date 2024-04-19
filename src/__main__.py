@@ -201,17 +201,11 @@ def stop_daemon(args):
     mount_point = os.path.join(WORKING_DIR, "dropbox")
 
     try:
-
         subprocess.run(["umount", mount_point], check=True)
-
         # rootdir = os.path.join(WORKING_DIR, ".cache")
-        # shutil.rmtree(rootdir)
-    except Exception as e:
-        print(f"unmount failure：{e}")
-    try:
         shutil.rmtree(mount_point)
     except Exception as e:
-        print(f"remove mountdir failure：{e}")
+        print(f"unmount failure：{e}")
     try:
         os.kill(pid, signal.SIGKILL)
     except Exception as e:

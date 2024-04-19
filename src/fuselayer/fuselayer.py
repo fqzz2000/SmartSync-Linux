@@ -138,7 +138,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         # logger.info(f"RMDIR CALLED WITH ID {random.randint(0, 100)}, path: {path}")
         logger.info(f"RMDIR CALLED, path: {path}")
         # with multiple level support, need to raise ENOTEMPTY if contains any files
-        if self.db.deleteFolder(path.lstrip("/")) == -1:
+        if self.db.delete(path.lstrip("/")) == -1:
             raise FuseOSError(errno.ENOENT)
 
     def setxattr(self, path, name, value, options, position=0):
@@ -192,7 +192,7 @@ class FuseDropBox(LoggingMixIn, Operations):
     def unlink(self, path):
         logger.info(f"UNLINK CALLED, path: {path}")
         # logger.info(f"UNLINK CALLED WITH ID {random.randint(0, 100)}, path: {path}")
-        if self.db.deleteFile(path.lstrip("/")) == -1:
+        if self.db.delete(path.lstrip("/")) == -1:
             raise FuseOSError(errno.ENOENT)
         
 
