@@ -100,13 +100,13 @@ def listen_for_events(url, data, model):
 def start_daemon(args):
     # create directories and clearing previous logs
     if not os.path.exists(config.TMP_DIR):
-        os.mkdir(config.TMP_DIR)
+        os.makedirs(config.TMP_DIR, exist_ok=True)
     if not os.path.exists(WORKING_DIR):
-        os.mkdir(WORKING_DIR)
+        os.makedirs(WORKING_DIR, exist_ok=True)
     if not os.path.exists(os.path.join(WORKING_DIR, ".cache")):
-        os.mkdir(os.path.join(WORKING_DIR, ".cache"))
+        os.makedirs(os.path.join(WORKING_DIR, ".cache"), exist_ok=True)
     if not os.path.exists(os.path.join(WORKING_DIR, "dropbox")):
-        os.mkdir(os.path.join(WORKING_DIR, "dropbox"))
+        os.makedirs(os.path.join(WORKING_DIR, "dropbox"), exist_ok=True)
     rootdir = os.path.join(WORKING_DIR, ".cache")
     swapdir = os.path.join(WORKING_DIR, ".swap")
     if os.path.exists(os.path.join(config.TMP_DIR, "dropbox.log")):

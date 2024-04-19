@@ -36,6 +36,8 @@ def lockWrapper(func):
 
 class DropBoxModel:
     def __init__(self, interface, rootdir, swapdir) -> None:
+        log_path = os.path.expanduser("~/Desktop/.config/dropbox.log")
+        logger.add(log_path, level="INFO")
         self.dbx = interface
         self.rootdir = rootdir
         self.swapdir = swapdir
@@ -44,6 +46,7 @@ class DropBoxModel:
         self.local_metadata_file_path = os.path.expanduser("~/Desktop/.config/metadata.pkl")
         self.cursor = None  # state cursor for dropbox
         self.full_metadata = self.fetchAllMetadata()
+        logger.info(f"Full metadata: {self.full_metadata.path_to_id}")
 
         if os.path.exists(self.local_metadata_file_path):
             with open(self.local_metadata_file_path, "rb") as f:
@@ -51,6 +54,8 @@ class DropBoxModel:
                     self.local_metadata = pickle.load(f)
                 except Exception as e:
                     logger.error(f"Error loading metadata from file: {e}")
+
+        # add some logics here to handle the metadata
         for k, v in self.local_metadata.items():
             if v["type"] == "file":
                 v["uploaded"] = True
@@ -64,8 +69,7 @@ class DropBoxModel:
         self.thread.start()
         self.dthread.start()
         print("Model initialized")
-        log_path = os.path.expanduser("~/Desktop/.config/dropbox.log")
-        logger.add(log_path, level="ERROR")
+
 
     def stop(self):
         self.synchronizeThread.stop()
@@ -87,16 +91,16 @@ class DropBoxModel:
         logger.info(f"Got update metadata: {res}")
         # get a delete file list
 
-        def cleanPath(path):
-            # check if the file exist locally
-            local_path = os.path.join(self.rootdir, path.lstrip("/"))
-            if os.path.exists(local_path):
-                # check if the path is a file or a folder
-                if os.path.isfile(local_path) and self.local_metadata[path]["uploaded"]:
-                    os.unlink(local_path)
-                    logger.info(f"deleted {local_path}")
-                elif os.path.isdir(local_path):
-                    shutil.rmtree(local_path)
+        # def cleanPath(path):
+        #     # check if the file exist locally
+        #     local_path = os.path.join(self.rootdir, path.lstrip("/"))
+        #     if os.path.exists(local_path):
+        #         # check if the path is a file or a folder
+        #         if os.path.isfile(local_path) and self.local_metadata[path]["uploaded"]:
+        #             os.unlink(local_path)
+        #             logger.info(f"deleted {local_path}")
+        #         elif os.path.isdir(local_path):
+        #             shutil.rmtree(local_path)
 
         def handleMove(id, path, new_path):
 
@@ -112,9 +116,10 @@ class DropBoxModel:
                     os.path.join(self.rootdir, new_path.lstrip("/")), exist_ok=True
                 )
             # no need to actually move the file, just update the metadata and delete the old one
-            logger.info(f"deleting {path}")
-            cleanPath(path)
-            self.local_metadata.pop(path)
+            logger.info(f"moving from {path} to {new_path}")
+            # cleanPath(path)
+            # self.local_metadata.pop(path)
+            self.moveLocal(path.lstrip("/"), new_path.lstrip("/"))
             logger.info(
                 f"updated {id} from {path} to {new_path}, current metadata: {self.local_metadata}"
             )
@@ -126,11 +131,12 @@ class DropBoxModel:
                     path = file.path_display
                     if path in self.local_metadata:
                         # clean the file
-                        cleanPath(path)
+                        # cleanPath(path)
                         # update the metadata
-                        self.local_metadata.pop(path)
+                        # self.local_metadata.pop(path)
+                        self.deleteLocal(path.lstrip("/"))
                         dList.append(k)
-                        self.flushMetadataAsync(self.local_metadata)
+                        # self.flushMetadataAsync(self.local_metadata)
                 elif isinstance(file, dropbox.files.FileMetadata) or isinstance(
                     file, dropbox.files.FolderMetadata
                 ):
@@ -197,7 +203,7 @@ class DropBoxModel:
         """
         format the metadata to the format that the fuse layer can understand
         """
-        metadata = {}
+        metadata = MetadataContainer()
         local_zone = get_localzone()
         for k, v in files.items():
             if isinstance(v, dropbox.files.FileMetadata):
@@ -222,7 +228,7 @@ class DropBoxModel:
                     "uploaded": True,
                     "path": v.path_display,
                 }
-
+            metadata.update_id(v.path_display, v.id)
         return metadata
 
     def flushMetadata(self, metadata: MetadataContainer):
@@ -338,6 +344,7 @@ class DropBoxModel:
         local_path = os.path.join(self.rootdir, path.lstrip("/"))
         if not os.path.exists(local_path):
             os.makedirs(local_path, exist_ok=True)
+
         # print(self.local_metadata)
         direntries = [".", ".."]
         for local_key in list(self.local_metadata.keys()):
@@ -432,7 +439,34 @@ class DropBoxModel:
             return -1
         # print(f"create, current metatdata {self.metadata}")
         return ret
-
+    
+    def deleteLocal(self, path):
+        full_path = os.path.join(self.rootdir, path)
+        if os.path.exists(full_path):
+            deleting_dir = os.path.isdir(full_path)
+            try:
+                if deleting_dir:
+                    shutil.rmtree(full_path)
+                else:
+                    os.unlink(full_path)
+            except Exception as e:
+                logger.error(e)
+                return -1
+            # update metadata
+            self.local_metadata.pop("/" + path)
+            keys_to_delete = [
+                k for k in self.local_metadata.keys() if k.startswith("/" + path + "/")
+            ]
+            for key in keys_to_delete:
+                self.local_metadata.pop(key)
+            #flush metadata
+            try:
+                self.flushMetadataAsync(self.local_metadata)
+            except Exception as e:
+                logger.error(e)
+                return -1
+        return 0
+    
     @lockWrapper
     def deleteFolder(self, path: str) -> int:
         """
@@ -445,26 +479,7 @@ class DropBoxModel:
             logger.error(e)
             return -1
         # remove locally
-        new_path = os.path.join(self.rootdir, path)
-        if os.path.exists(new_path):
-            try:
-                os.rmdir(new_path)
-            except Exception as e:
-                logger.error(e)
-                return -1
-            # update metadata
-            keys_to_delete = [
-                k for k in self.local_metadata.keys() if k.startswith("/" + path)
-            ]
-
-            for key in keys_to_delete:
-                self.local_metadata.pop(key)
-            try:
-                self.flushMetadataAsync(self.local_metadata)
-            except Exception as e:
-                logger.error(e)
-                return -1
-        return 0
+        return self.deleteLocal(path)
 
     @lockWrapper
     def deleteFile(self, path: str) -> int:
@@ -480,22 +495,7 @@ class DropBoxModel:
             return -1
         logger.info(f"deleted remotely")
         # remove locally
-        new_path = os.path.join(self.rootdir, path)
-        if os.path.exists(new_path):
-            try:
-                os.unlink(new_path)
-            except Exception as e:
-                logger.error(e)
-                return -1
-            # update metadata
-            if path in self.local_metadata:
-                self.local_metadata.pop("/" + path)
-            try:
-                self.flushMetadataAsync(self.local_metadata)
-            except Exception as e:
-                logger.error(e)
-                return -1
-        return 0
+        return self.deleteLocal(path)
 
     @lockWrapper
     def open_file(self, path, local_path, flags):
@@ -511,6 +511,7 @@ class DropBoxModel:
                 logger.warning(f"local file not exists: {local_path}")
                 self.download_file(path, local_path)  # trigger download
                 self.local_metadata[path] = remote_metadata
+                self.local_metadata.update_id(path, self.full_metadata.path_to_id[path])
                 self.flushMetadataAsync(self.local_metadata)
 
                 # self.metadata[path] = metadata_from_db[path]
@@ -544,6 +545,9 @@ class DropBoxModel:
     def download_file(self, path, local_path):
         logger.info(f"downloading {path}")
         lockfile_path = f"{local_path}.lock"
+        lockfile_dir_path = os.path.dirname(lockfile_path)
+        if not os.path.exists(lockfile_dir_path):
+            os.makedirs(lockfile_dir_path, exist_ok=True)
         with open(lockfile_path, "w") as lockfile:
             try:
                 fcntl.flock(
@@ -570,44 +574,63 @@ class DropBoxModel:
         except Exception as e:
             logger.error(f"Error moving file: {e}")
             return -1
+        return self.moveLocal(old, new)
+    
+    def moveLocal(self, old: str, new: str) -> int:
         # local move
+        logger.info(f"moving {old} to {new}")
         old_path = os.path.join(self.rootdir, old)
         new_path = os.path.join(self.rootdir, new)
+        logger.info(f"moving {old_path} to {new_path}")
         if os.path.exists(old_path):
-            new_path_dir = os.path.dirname(new_path)
-            if not os.path.exists(new_path_dir):
-                os.makedirs(new_path_dir)
+            try:
+                logger.info(f"{old_path} exists")
+                moving_dir = os.path.isdir(old_path)
+                logger.info(f"moving dir: {moving_dir}")
+                new_path_dir = os.path.dirname(new_path)
+                logger.info(f"new path dir: {new_path_dir}")
+                os.makedirs(new_path_dir, exist_ok=True)
+                logger.info(f"really going to moving {old_path} to {new_path}")
+            except Exception as e:
+                logger.error(f"Error moving file: {e}")
+                return -1
             try:
                 os.rename(old_path, new_path)
             except Exception as e:
                 logger.error(f"Error moving file: {e}")
                 return -1
+            logger.info(f"moved {old_path} to {new_path}")
             # metadata update
             try:
-                if old in self.local_metadata:
-                    m_type = self.local_metadata[old]["type"]
-                    self.local_metadata[new] = self.metadata.pop("/" + old)
+                new = "/" + new
+                old = "/" + old
+                # if old in self.local_metadata:
+                # self.local_metadata[new] = self.local_metadata.pop(old)
+                try:
+                    self.local_metadata.update_path(old, new)
                     self.local_metadata[new]["name"] = os.path.basename(new_path)
                     self.local_metadata[new]["mtime"] = time.time()
-
-                    if m_type == "folder":
-                        old_prefix = old + "/"
-                        new_prefix = new + "/"
-                        keys_to_update = [
-                            k
-                            for k in self.local_metadata.keys()
-                            if k.startswith(old_prefix)
-                        ]
-                        for key in keys_to_update:
-                            new_key = new_prefix + key[len(old_prefix) :]
-                            self.local_metadata[new_key] = self.local_metadata.pop(key)
-                            self.local_metadata[new_key]["mtime"] = time.time()
-
-                else:
-                    # remote_metadata = self.fetchOneMetadata("/" + new)
-                    remote_metadata = self.full_metadata.get("/" + new)
-                    if remote_metadata is not None:
-                        self.local_metadata["/" + new] = remote_metadata.get("/" + new)
+                except Exception as e:
+                    logger.error(f"Error moving file from metadata: {e}")
+                # else:
+                #     # remote_metadata = self.fetchOneMetadata("/" + new)
+                #     remote_metadata = self.full_metadata.get(new)
+                #     if remote_metadata is not None:
+                #         self.local_metadata[new] = remote_metadata.get(new)
+                logger.info(f"old path is {old_path}, and it's a dir: {moving_dir}")
+                if moving_dir:
+                    logger.info(f"moving folder from {old} to {new}!")
+                    old_prefix = old + "/"
+                    new_prefix = new + "/"
+                    keys_to_update = [
+                        k
+                        for k in self.local_metadata.keys()
+                        if k.startswith(old_prefix)
+                    ]
+                    for key in keys_to_update:
+                        new_key = new_prefix + key[len(old_prefix) :]
+                        self.local_metadata.update_path(key, new_key)
+                        self.local_metadata[new_key]["mtime"] = time.time()
                 self.flushMetadataAsync(self.local_metadata)
             except Exception as e:
                 logger.error(f"Error moving file: {e}")

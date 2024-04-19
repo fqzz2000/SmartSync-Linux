@@ -15,10 +15,13 @@ class MetadataContainer:
         self.path_to_id[path] = new_id
         self.id_metadata[new_id] = self.id_metadata.pop(old_id)
 
-    def update_path(self, id, old_path, new_path):
+    def update_path(self, old_path, new_path):
         # update path of the given id
-        if self.id_metadata.get(id, None) is None:
-            raise KeyError(id)
+        # if self.id_metadata.get(id, None) is None:
+        #     raise KeyError(id)
+        if self.path_to_id.get(old_path, None) is None:
+            return
+        id = self.path_to_id[old_path]
         self.path_to_id[new_path] = id
         self.id_metadata[id]["path"] = new_path
         del self.path_to_id[old_path]
