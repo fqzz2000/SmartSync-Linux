@@ -18,7 +18,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         self.db = dbmodel
         logger.remove()
         log_path = os.path.expanduser("~/Desktop/.config/dropbox.log")
-        logger.add(log_path, level="ERROR")
+        logger.add(log_path, level="INFO")
 
     def chmod(self, path, mode):
         # logger.info(f"CHMOD CALLED WITH ID {random.randint(0, 100)}, path: {path}")
@@ -131,6 +131,7 @@ class FuseDropBox(LoggingMixIn, Operations):
         logger.info(f"RENAME CALLED, path: {old} to {new}")
 
         if self.db.move(old.lstrip("/"), new.lstrip("/")) == -1:
+            logger.error(f"Error with rename from {old} to {new}!")
             raise FuseOSError(errno.ENOENT)
 
     def rmdir(self, path):
