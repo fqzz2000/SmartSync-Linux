@@ -56,6 +56,7 @@ class DropBoxModel:
                     logger.error(f"Error loading metadata from file: {e}")
 
         # add some logics here to handle the metadata
+        self.initLocalMetadata()
         for k, v in self.local_metadata.items():
             if v["type"] == "file":
                 v["uploaded"] = True
@@ -75,6 +76,27 @@ class DropBoxModel:
         self.synchronizeThread.stop()
         self.downloadingThread.stop()
         self.thread.join()
+
+    @lockWrapper
+    def initLocalMetadata(self):
+        try:
+            tmp = self.local_metadata
+            for k, v in tmp.path_to_id.items():
+                path = k
+                id = v
+                logger.error(f"initLocalMetadata: {id}, {path}")
+                if id not in self.full_metadata.id_metadata.keys() and path not in self.full_metadata.path_to_id.keys():
+                    logger.error(f"initLocalMetadata: ready to delete {path}")
+                    self.deleteLocal(path.lstrip('/'))
+                    logger.error(f"finished deleting {path}")
+                else:
+                    remote_path = self.full_metadata.id_metadata[id]["path"]
+                    logger.error(f"remote_path: {remote_path}")
+                    if remote_path != path:
+                        logger.error(f"initLocalMetadata: ready to move {path} to {remote_path}")
+                        self.moveLocal(path.lstrip('/'), remote_path.lstrip('/'))
+        except Exception as e:
+            logger.error(e)
 
     @lockWrapper
     def updateFullMetadata(self):
@@ -453,12 +475,17 @@ class DropBoxModel:
                 logger.error(e)
                 return -1
             # update metadata
-            self.local_metadata.pop("/" + path)
-            keys_to_delete = [
-                k for k in self.local_metadata.keys() if k.startswith("/" + path + "/")
-            ]
-            for key in keys_to_delete:
-                self.local_metadata.pop(key)
+            try:
+                self.local_metadata.pop("/" + path)
+            except Exception as e:
+                logger.error("failed to delete metadata")
+                return -1
+            if deleting_dir:
+                keys_to_delete = [
+                    k for k in self.local_metadata.keys() if k.startswith("/" + path + "/")
+                ]
+                for key in keys_to_delete:
+                    self.local_metadata.pop(key)
             #flush metadata
             try:
                 self.flushMetadataAsync(self.local_metadata)
@@ -466,28 +493,14 @@ class DropBoxModel:
                 logger.error(e)
                 return -1
         return 0
-    
-    @lockWrapper
-    def deleteFolder(self, path: str) -> int:
-        """
-        delete a file in the dropbox
-        """
-        # remove remotely
-        try:
-            self.dbx.delete("/" + path)
-        except Exception as e:
-            logger.error(e)
-            return -1
-        # remove locally
-        return self.deleteLocal(path)
 
     @lockWrapper
-    def deleteFile(self, path: str) -> int:
+    def delete(self, path: str) -> int:
         """
         delete a file in the dropbox
         """
         # remove remotely
-        logger.info(f"start delete file {path}")
+        logger.info(f"start delete {path}")
         try:
             self.dbx.delete("/" + path)
         except Exception as e:
